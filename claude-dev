@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [ -L "$SCRIPT_PATH" ]; do
+  LINK_TARGET="$(readlink "$SCRIPT_PATH")"
+  if [[ "$LINK_TARGET" = /* ]]; then
+    SCRIPT_PATH="$LINK_TARGET"
+  else
+    SCRIPT_PATH="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)/$LINK_TARGET"
+  fi
+done
+REPO_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+
+# Keep this local/dev build fully separate from the official install.
+export CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude-dev}"
+
+normalize_url() {
+  local raw="$1"
+  if [[ "$raw" == http://* || "$raw" == https://* ]]; then
+    printf '%s' "$raw"
+  else
+    printf 'http://%s' "$raw"
+  fi
+}
+
+cleanup_tui() {
+  tput cnorm >/dev/stderr 2>/dev/null || true
+}
+
+trap cleanup_tui EXIT INT TERM
+
+has_ollama() {
+  command -v ollama >/dev/null 2>&1
+}
+
+get_ollama_models() {
+  ollama list 2>/dev/null | awk 'NR > 1 && NF > 0 { print $1 }'
+}
+
+set_env_if_needed() {
+  local name="$1"
+  local value="$2"
+  local force="${3:-0}"
+  if [[ "$force" == "1" || -z "${!name:-}" ]]; then
+    export "$name=$value"
+  fi
+}
+
+set_ollama_model_env() {
+  local model="$1"
+  local force="${2:-0}"
+  set_env_if_needed ANTHROPIC_BASE_URL "$OLLAMA_BASE_URL" "$force"
+  set_env_if_needed ANTHROPIC_API_KEY "${CLAUDE_DEV_OLLAMA_API_KEY:-ollama}" "$force"
+  set_env_if_needed ANTHROPIC_AUTH_TOKEN "${CLAUDE_DEV_OLLAMA_AUTH_TOKEN:-ollama}" "$force"
+  set_env_if_needed ANTHROPIC_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_SMALL_FAST_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_DEFAULT_SONNET_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_DEFAULT_HAIKU_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_DEFAULT_OPUS_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_CUSTOM_MODEL_OPTION "$model" "$force"
+  set_env_if_needed ANTHROPIC_CUSTOM_MODEL_OPTION_NAME "$model" "$force"
+  set_env_if_needed ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION "Local Ollama model" "$force"
+}
+
+should_use_model_picker() {
+  if [[ "${CLAUDE_DEV_SKIP_MODEL_PICKER:-0}" == "1" ]]; then
+    return 1
+  fi
+  if [[ "${CLAUDE_DEV_MODEL_PICKER:-1}" == "0" ]]; then
+    return 1
+  fi
+  if [[ $# -ne 0 ]]; then
+    return 1
+  fi
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    return 1
+  fi
+  return 0
+}
+
+prompt_for_model() {
+  local default_model="$1"
+  local -a models=()
+  local line
+  local idx
+  local selected=0
+  local key
+
+  while IFS= read -r line; do
+    if [[ -n "$line" ]]; then
+      models+=("$line")
+    fi
+  done < <(get_ollama_models)
+
+  if [[ "${#models[@]}" -eq 0 ]]; then
+    printf 'No Ollama models found. Install one first with `ollama pull <model>`.\n' >&2
+    exit 1
+  fi
+
+  for idx in "${!models[@]}"; do
+    if [[ "${models[$idx]}" == "$default_model" ]]; then
+      selected="$idx"
+      break
+    fi
+  done
+
+  tput civis >/dev/stderr 2>/dev/null || true
+  while true; do
+    printf '\033[2J\033[H' >&2
+    printf 'Select an Ollama model for claude-dev (arrow keys + Enter):\n\n' >&2
+    for idx in "${!models[@]}"; do
+      if [[ "$idx" -eq "$selected" ]]; then
+        printf '  \033[1;7m> %s\033[0m\n' "${models[$idx]}" >&2
+      else
+        printf '    %s\n' "${models[$idx]}" >&2
+      fi
+    done
+
+    IFS= read -rsn1 key || true
+    if [[ "$key" == $'\x1b' ]]; then
+      IFS= read -rsn2 key || true
+      case "$key" in
+        '[A')
+          selected=$(( (selected - 1 + ${#models[@]}) % ${#models[@]} ))
+          ;;
+        '[B')
+          selected=$(( (selected + 1) % ${#models[@]} ))
+          ;;
+      esac
+    elif [[ -z "$key" || "$key" == $'\n' || "$key" == $'\r' ]]; then
+      break
+    fi
+  done
+
+  printf '\033[2J\033[H' >&2
+  tput cnorm >/dev/stderr 2>/dev/null || true
+  printf '%s' "${models[$selected]}"
+}
+
+warmup_model_with_progress() {
+  local model="$1"
+  local timeout_sec="${CLAUDE_DEV_MODEL_LOAD_TIMEOUT_SEC:-180}"
+  local generate_url="${OLLAMA_BASE_URL%/}/api/generate"
+  local payload
+  local tmp_out
+  local tmp_err
+  local pid
+
+  payload=$(printf '{"model":"%s","prompt":"ping","stream":false,"keep_alive":"15m","options":{"num_predict":1}}' "$model")
+  tmp_out="$(mktemp "${TMPDIR:-/tmp}/claude-dev-warmup-out.XXXXXX")"
+  tmp_err="$(mktemp "${TMPDIR:-/tmp}/claude-dev-warmup-err.XXXXXX")"
+
+  if command -v curl >/dev/null 2>&1; then
+    curl -sS --max-time "$timeout_sec" \
+      -H 'Content-Type: application/json' \
+      -X POST "$generate_url" \
+      -d "$payload" >"$tmp_out" 2>"$tmp_err" &
+  else
+    ollama run "$model" "ping" >"$tmp_out" 2>"$tmp_err" &
+  fi
+  pid=$!
+
+  printf "Loading '%s' into memory " "$model"
+  while kill -0 "$pid" 2>/dev/null; do
+    printf '#'
+    sleep 0.1
+  done
+
+  if wait "$pid"; then
+    printf ' done\n'
+  else
+    printf ' failed\n'
+    if [[ -s "$tmp_err" ]]; then
+      printf 'Model warmup warning: %s\n' "$(head -n 1 "$tmp_err")" >&2
+    fi
+  fi
+
+  rm -f "$tmp_out" "$tmp_err"
+}
+
+OLLAMA_BASE_URL="$(normalize_url "${CLAUDE_DEV_OLLAMA_BASE_URL:-${OLLAMA_HOST:-127.0.0.1:11434}}")"
+DEFAULT_MODEL="${CLAUDE_DEV_DEFAULT_MODEL:-${CLAUDE_OLLAMA_MODEL:-${OLLAMA_MODEL:-llama3.1:8b}}}"
+
+# Local Ollama mode should not call nonessential Anthropic endpoints.
+set_env_if_needed CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC "${CLAUDE_DEV_DISABLE_NONESSENTIAL_TRAFFIC:-1}" 0
+
+# Always default the local build to Ollama unless the user already exported values.
+set_ollama_model_env "$DEFAULT_MODEL" 0
+
+if should_use_model_picker "$@"; then
+  if ! has_ollama; then
+    printf 'Ollama is not installed or not on PATH. Install/start Ollama, then run claude-dev again.\n' >&2
+    exit 1
+  fi
+  if ! ollama list >/dev/null 2>&1; then
+    printf 'Unable to query Ollama models. Start Ollama first (for example: `ollama serve`).\n' >&2
+    exit 1
+  fi
+
+  selected_model="$(prompt_for_model "$DEFAULT_MODEL")"
+  set_ollama_model_env "$selected_model" 1
+  warmup_model_with_progress "$selected_model"
+fi
+
+exec bun "$REPO_DIR/src/entrypoints/cli-dev-bootstrap.ts" "$@"
