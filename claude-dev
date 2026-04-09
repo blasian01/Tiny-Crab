@@ -320,6 +320,10 @@ ACTIVE_MODEL="$DEFAULT_MODEL"
 # Mark this launcher as local-model-only mode for onboarding and setup flows.
 set_env_if_needed CLAUDE_CODE_LOCAL_MODEL_MODE "${CLAUDE_CODE_LOCAL_MODEL_MODE:-1}" 0
 
+# Guard local-model sessions against runaway tool loops on weaker models.
+# Users can override with CLAUDE_DEV_MAX_TURNS or CLAUDE_CODE_MAX_TURNS.
+set_env_if_needed CLAUDE_CODE_MAX_TURNS "${CLAUDE_DEV_MAX_TURNS:-8}" 0
+
 # Local Ollama mode should not call nonessential Anthropic endpoints.
 set_env_if_needed CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC "${CLAUDE_DEV_DISABLE_NONESSENTIAL_TRAFFIC:-1}" 0
 

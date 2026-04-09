@@ -1068,12 +1068,14 @@ function PromptInput({
       return;
     }
 
-    // PromptInput UX: Check if suggestions dropdown is showing
-    // For directory suggestions, allow submission (Tab is used for completion)
+    // PromptInput UX: only block Enter for slash-command suggestion menus.
+    // Plain prompts should still submit even if typeahead suggestions are open.
     const hasDirectorySuggestions = suggestionsState.suggestions.length > 0 && suggestionsState.suggestions.every(s => s.description === 'directory');
-    if (suggestionsState.suggestions.length > 0 && !isSubmittingSlashCommand && !hasDirectorySuggestions) {
-      logForDebugging(`[onSubmit] early return: suggestions showing (count=${suggestionsState.suggestions.length})`);
-      return; // Don't submit, user needs to clear suggestions first
+    const hasNonDirectorySuggestions = suggestionsState.suggestions.length > 0 && !hasDirectorySuggestions;
+    const isSlashLikeInput = inputParam.trimStart().startsWith('/');
+    if (hasNonDirectorySuggestions && !isSubmittingSlashCommand && isSlashLikeInput) {
+      logForDebugging(`[onSubmit] early return: slash suggestions showing (count=${suggestionsState.suggestions.length})`);
+      return; // Slash command suggestions still require explicit selection/submit path.
     }
 
     // Log suggestion outcome if one exists

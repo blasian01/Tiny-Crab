@@ -914,6 +914,20 @@ export function REPL({
   // loading is driven by queryGuard (reserve/tryStart/end/cancelReservation),
   // external loading by setIsExternalLoading.
   const isLoading = isQueryActive || isExternalLoading;
+  const localModeMaxTurns = useMemo(() => {
+    if (!isEnvTruthy(process.env.CLAUDE_CODE_LOCAL_MODEL_MODE)) {
+      return undefined;
+    }
+    const raw = process.env.CLAUDE_CODE_MAX_TURNS;
+    if (!raw) {
+      return undefined;
+    }
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return undefined;
+    }
+    return parsed;
+  }, []);
 
   // Elapsed time is computed by SpinnerWithVerb from these refs on each
   // animation frame, avoiding a useInterval that re-renders the entire REPL.
@@ -2797,6 +2811,7 @@ export function REPL({
       systemContext,
       canUseTool,
       toolUseContext,
+      maxTurns: localModeMaxTurns,
       querySource: getQuerySourceForREPL()
     })) {
       onQueryEvent(event);
@@ -2851,7 +2866,7 @@ export function REPL({
 
     // Signal that a query turn has completed successfully
     await onTurnComplete?.(messagesRef.current);
-  }, [initialMcpClients, resetLoadingState, getToolUseContext, toolPermissionContext, setAppState, customSystemPrompt, onTurnComplete, appendSystemPrompt, canUseTool, mainThreadAgentDefinition, onQueryEvent, sessionTitle, titleDisabled]);
+  }, [initialMcpClients, resetLoadingState, getToolUseContext, toolPermissionContext, setAppState, customSystemPrompt, onTurnComplete, appendSystemPrompt, canUseTool, mainThreadAgentDefinition, onQueryEvent, sessionTitle, titleDisabled, localModeMaxTurns]);
   const onQuery = useCallback(async (newMessages: MessageType[], abortController: AbortController, shouldQuery: boolean, additionalAllowedTools: string[], mainLoopModelParam: string, onBeforeQueryCallback?: (input: string, newMessages: MessageType[]) => Promise<boolean>, input?: string, effort?: EffortValue): Promise<void> => {
     // If this is a teammate, mark them as active when starting a turn
     if (isAgentSwarmsEnabled()) {
