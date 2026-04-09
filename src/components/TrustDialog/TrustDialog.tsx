@@ -5,7 +5,7 @@ import { logEvent } from 'src/services/analytics/index.js';
 import { setSessionTrustAccepted } from '../../bootstrap/state.js';
 import type { Command } from '../../commands.js';
 import { useExitOnCtrlCDWithKeybindings } from '../../hooks/useExitOnCtrlCDWithKeybindings.js';
-import { Box, Link, Text } from '../../ink.js';
+import { Box, Text } from '../../ink.js';
 import { useKeybinding } from '../../keybindings/useKeybinding.js';
 import { getMcpConfigsByScope } from '../../services/mcp/config.js';
 import { BASH_TOOL_NAME } from '../../tools/BashTool/toolName.js';
@@ -205,8 +205,8 @@ export function TrustDialog(t0) {
   let t18;
   if ($[20] === Symbol.for("react.memo_cache_sentinel")) {
     t16 = <Text bold={true}>{getFsImplementation().cwd()}</Text>;
-    t17 = <Text>Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source project, or work from your team). If not, take a moment to review what{"'"}s in this folder first.</Text>;
-    t18 = <Text>Claude Code{"'"}ll be able to read, edit, and execute files here.</Text>;
+    t17 = <Text>Local model safety check: Is this a folder you trust to share with your local LLM? (For example your own code, trusted open source, or team code.) If not, review its contents before continuing.</Text>;
+    t18 = <Text>claude-dev can read, edit, and execute files in this workspace using local tools.</Text>;
     $[20] = t16;
     $[21] = t17;
     $[22] = t18;
@@ -217,7 +217,7 @@ export function TrustDialog(t0) {
   }
   let t19;
   if ($[23] === Symbol.for("react.memo_cache_sentinel")) {
-    t19 = <Text dimColor={true}><Link url="https://code.claude.com/docs/en/security">Security guide</Link></Text>;
+    t19 = <Text dimColor={true}>Local-only mode: API/cloud onboarding is disabled.</Text>;
     $[23] = t19;
   } else {
     t19 = $[23];
@@ -254,7 +254,7 @@ export function TrustDialog(t0) {
   }
   let t23;
   if ($[30] !== t21 || $[31] !== t22) {
-    t23 = <PermissionDialog color="warning" titleColor="warning" title="Accessing workspace:"><Box flexDirection="column" gap={1} paddingTop={1}>{t16}{t17}{t18}{t19}{t21}{t22}</Box></PermissionDialog>;
+    t23 = <PermissionDialog color="warning" titleColor="warning" title="Local workspace access:"><Box flexDirection="column" gap={1} paddingTop={1}>{t16}{t17}{t18}{t19}{t21}{t22}</Box></PermissionDialog>;
     $[30] = t21;
     $[31] = t22;
     $[32] = t23;

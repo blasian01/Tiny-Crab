@@ -238,11 +238,15 @@ OLLAMA_BASE_URL="$(normalize_url "${CLAUDE_DEV_OLLAMA_BASE_URL:-${OLLAMA_HOST:-1
 DEFAULT_MODEL="${CLAUDE_DEV_DEFAULT_MODEL:-${CLAUDE_OLLAMA_MODEL:-${OLLAMA_MODEL:-llama3.1:8b}}}"
 ACTIVE_MODEL="$DEFAULT_MODEL"
 
+# Mark this launcher as local-model-only mode for onboarding and setup flows.
+set_env_if_needed CLAUDE_CODE_LOCAL_MODEL_MODE "${CLAUDE_CODE_LOCAL_MODEL_MODE:-1}" 0
+
 # Local Ollama mode should not call nonessential Anthropic endpoints.
 set_env_if_needed CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC "${CLAUDE_DEV_DISABLE_NONESSENTIAL_TRAFFIC:-1}" 0
 
 # Always default the local build to Ollama unless the user already exported values.
 set_ollama_model_env "$DEFAULT_MODEL" 0
+ACTIVE_MODEL="${ANTHROPIC_MODEL:-$DEFAULT_MODEL}"
 
 if should_use_model_picker "$@"; then
   if ! has_ollama; then

@@ -106,6 +106,7 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
   ) {
     return false;
   }
+  const localModelMode = isEnvTruthy(process.env.CLAUDE_CODE_LOCAL_MODEL_MODE);
   const config = getGlobalConfig();
   let onboardingShown = false;
   if (!config.theme || !config.hasCompletedOnboarding // always show onboarding at least once
@@ -188,7 +189,7 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
   // Defer to next tick so the OTel dynamic import resolves after first render
   // instead of during the pre-render microtask queue.
   setImmediate(() => initializeTelemetryAfterTrust());
-  if (await isQualifiedForGrove()) {
+  if (!localModelMode && await isQualifiedForGrove()) {
     const {
       GroveDialog
     } = await import('src/components/grove/Grove.js');
@@ -203,7 +204,7 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
   // Check for custom API key
   // On homespace, ANTHROPIC_API_KEY is preserved in process.env for child
   // processes but ignored by Claude Code itself (see auth.ts).
-  if (process.env.ANTHROPIC_API_KEY && !isRunningOnHomespace()) {
+  if (!localModelMode && process.env.ANTHROPIC_API_KEY && !isRunningOnHomespace()) {
     const customApiKeyTruncated = normalizeApiKeyForConfig(process.env.ANTHROPIC_API_KEY);
     const keyStatus = getCustomApiKeyStatus(customApiKeyTruncated);
     if (keyStatus === 'new') {
