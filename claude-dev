@@ -77,14 +77,19 @@ get_ollama_model_context_length() {
 
 derive_max_output_tokens_for_context() {
   local context_length="$1"
-  local max_output_tokens=$(( context_length / 8 ))
+  local max_output_tokens=$(( context_length / 16 ))
+  local max_output_cap="${CLAUDE_DEV_MAX_OUTPUT_TOKENS_CAP:-2048}"
+
+  if [[ ! "$max_output_cap" =~ ^[0-9]+$ ]] || (( max_output_cap <= 0 )); then
+    max_output_cap=2048
+  fi
 
   # Keep local inference responsive while leaving enough headroom for context.
-  if (( max_output_tokens < 1024 )); then
-    max_output_tokens=1024
+  if (( max_output_tokens < 512 )); then
+    max_output_tokens=512
   fi
-  if (( max_output_tokens > 8192 )); then
-    max_output_tokens=8192
+  if (( max_output_tokens > max_output_cap )); then
+    max_output_tokens=$max_output_cap
   fi
   if (( max_output_tokens >= context_length )); then
     max_output_tokens=$(( context_length - 1 ))
@@ -99,10 +104,16 @@ derive_max_output_tokens_for_context() {
 set_ollama_context_env() {
   local model="$1"
   local context_length
+  local context_cap
   local max_output_tokens
 
   if ! context_length="$(get_ollama_model_context_length "$model")"; then
     return 0
+  fi
+
+  context_cap="${CLAUDE_DEV_CONTEXT_WINDOW_CAP:-32768}"
+  if [[ "$context_cap" =~ ^[0-9]+$ ]] && (( context_cap > 0 )) && (( context_length > context_cap )); then
+    context_length="$context_cap"
   fi
 
   max_output_tokens="$(derive_max_output_tokens_for_context "$context_length")"
@@ -324,8 +335,17 @@ set_env_if_needed CLAUDE_CODE_LOCAL_MODEL_MODE "${CLAUDE_CODE_LOCAL_MODEL_MODE:-
 # Users can override with CLAUDE_DEV_MAX_TURNS or CLAUDE_CODE_MAX_TURNS.
 set_env_if_needed CLAUDE_CODE_MAX_TURNS "${CLAUDE_DEV_MAX_TURNS:-8}" 0
 
+# Local models are slower with high effort defaults; keep a responsive default.
+set_env_if_needed CLAUDE_CODE_EFFORT_LEVEL "${CLAUDE_DEV_EFFORT_LEVEL:-low}" 0
+
 # Local Ollama mode should not call nonessential Anthropic endpoints.
 set_env_if_needed CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC "${CLAUDE_DEV_DISABLE_NONESSENTIAL_TRAFFIC:-1}" 0
+
+# Disable Claude thinking modes by default for local Ollama models.
+# Many local models (including Gemma) emit hidden thinking tokens without
+# assistant text, which makes turns appear to hang or return empty output.
+set_env_if_needed CLAUDE_CODE_DISABLE_THINKING "${CLAUDE_DEV_DISABLE_THINKING:-1}" 0
+set_env_if_needed DISABLE_INTERLEAVED_THINKING "${CLAUDE_DEV_DISABLE_INTERLEAVED_THINKING:-1}" 0
 
 # Hard-disable cloud/provider auth paths in local mode.
 unset CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX CLAUDE_CODE_USE_FOUNDRY

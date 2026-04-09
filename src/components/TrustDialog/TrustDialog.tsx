@@ -8,6 +8,7 @@ import { useExitOnCtrlCDWithKeybindings } from '../../hooks/useExitOnCtrlCDWithK
 import { Box, Text } from '../../ink.js';
 import { useKeybinding } from '../../keybindings/useKeybinding.js';
 import { getMcpConfigsByScope } from '../../services/mcp/config.js';
+import { logForDebugging } from '../../utils/debug.js';
 import { BASH_TOOL_NAME } from '../../tools/BashTool/toolName.js';
 import { checkHasTrustDialogAccepted, saveCurrentProjectConfig } from '../../utils/config.js';
 import { getCwd } from '../../utils/cwd.js';
@@ -171,10 +172,19 @@ export function TrustDialog(t0) {
         hasOtelHeadersHelper,
         hasDangerousEnvVars
       });
-      if (isHomeDir_0) {
-        setSessionTrustAccepted(true);
-      } else {
-        saveCurrentProjectConfig(_temp5);
+      // Unblock REPL immediately after user consent, even if config persistence
+      // is slow or contended by another process.
+      setSessionTrustAccepted(true);
+      if (!isHomeDir_0) {
+        setTimeout(() => {
+          try {
+            saveCurrentProjectConfig(_temp5);
+          } catch (error) {
+            logForDebugging(`Failed to persist trust dialog acceptance: ${String(error)}`, {
+              level: "error"
+            });
+          }
+        }, 0);
       }
       onDone();
     };
