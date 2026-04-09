@@ -63,6 +63,61 @@ set_ollama_model_env() {
   set_env_if_needed ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION "Local Ollama model" "$force"
 }
 
+get_ollama_model_context_length() {
+  local model="$1"
+  local context_length
+  context_length="$(
+    ollama show "$model" 2>/dev/null \
+      | awk 'tolower($0) ~ /context length/ { print $0; exit }' \
+      | tr -cd '0-9'
+  )"
+  if [[ -z "$context_length" || "$context_length" -le 0 ]]; then
+    return 1
+  fi
+  printf '%s' "$context_length"
+}
+
+derive_max_output_tokens_for_context() {
+  local context_length="$1"
+  local max_output_tokens=$(( context_length / 8 ))
+
+  # Keep local inference responsive while leaving enough headroom for context.
+  if (( max_output_tokens < 1024 )); then
+    max_output_tokens=1024
+  fi
+  if (( max_output_tokens > 8192 )); then
+    max_output_tokens=8192
+  fi
+  if (( max_output_tokens >= context_length )); then
+    max_output_tokens=$(( context_length - 1 ))
+  fi
+  if (( max_output_tokens < 256 )); then
+    max_output_tokens=256
+  fi
+
+  printf '%s' "$max_output_tokens"
+}
+
+set_ollama_context_env() {
+  local model="$1"
+  local context_length
+  local max_output_tokens
+
+  if ! context_length="$(get_ollama_model_context_length "$model")"; then
+    return 0
+  fi
+
+  max_output_tokens="$(derive_max_output_tokens_for_context "$context_length")"
+  set_env_if_needed CLAUDE_CODE_AUTO_COMPACT_WINDOW "$context_length" 0
+  set_env_if_needed CLAUDE_CODE_MAX_OUTPUT_TOKENS "$max_output_tokens" 0
+
+  # Very small contexts can trigger immediate auto-compact loops; keep manual
+  # /compact available instead.
+  if (( context_length <= 15000 )); then
+    set_env_if_needed DISABLE_AUTO_COMPACT "${CLAUDE_DEV_DISABLE_AUTO_COMPACT_FOR_SMALL_CONTEXT:-1}" 0
+  fi
+}
+
 should_use_model_picker() {
   if [[ "${CLAUDE_DEV_SKIP_MODEL_PICKER:-0}" == "1" ]]; then
     return 1
@@ -181,6 +236,7 @@ warmup_model_with_progress() {
 
 OLLAMA_BASE_URL="$(normalize_url "${CLAUDE_DEV_OLLAMA_BASE_URL:-${OLLAMA_HOST:-127.0.0.1:11434}}")"
 DEFAULT_MODEL="${CLAUDE_DEV_DEFAULT_MODEL:-${CLAUDE_OLLAMA_MODEL:-${OLLAMA_MODEL:-llama3.1:8b}}}"
+ACTIVE_MODEL="$DEFAULT_MODEL"
 
 # Local Ollama mode should not call nonessential Anthropic endpoints.
 set_env_if_needed CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC "${CLAUDE_DEV_DISABLE_NONESSENTIAL_TRAFFIC:-1}" 0
@@ -199,8 +255,11 @@ if should_use_model_picker "$@"; then
   fi
 
   selected_model="$(prompt_for_model "$DEFAULT_MODEL")"
+  ACTIVE_MODEL="$selected_model"
   set_ollama_model_env "$selected_model" 1
   warmup_model_with_progress "$selected_model"
 fi
+
+set_ollama_context_env "$ACTIVE_MODEL"
 
 exec bun "$REPO_DIR/src/entrypoints/cli-dev-bootstrap.ts" "$@"
