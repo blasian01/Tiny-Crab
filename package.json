@@ -1,13 +1,13 @@
 {
-  "name": "@anthropic-ai/claude-code-dev-local",
-  "version": "0.0.0-leaked",
-  "description": "Anthropic Claude Code CLI — leaked source (2026-03-31). Not an official release.",
+  "name": "tiny-crab",
+  "version": "0.1.0",
+  "description": "Tiny Crab: a local LLM coding CLI powered by Ollama.",
   "license": "UNLICENSED",
   "private": true,
   "type": "module",
   "main": "src/entrypoints/cli.tsx",
   "bin": {
-    "claude-dev": "claude-dev"
+    "tiny-crab": "tiny-crab"
   },
   "scripts": {
     "build": "bun scripts/build-bundle.ts",

@@ -69,7 +69,7 @@ export function Onboarding({
             </Text>
           </OrderedList.Item>
           <OrderedList.Item>
-            <Text>Only run claude-dev in folders you trust</Text>
+            <Text>Only run tiny-crab in folders you trust</Text>
             <Text dimColor wrap="wrap">
               Workspace content is sent to your local Ollama server
               <Newline />

@@ -216,7 +216,7 @@ export function TrustDialog(t0) {
   if ($[20] === Symbol.for("react.memo_cache_sentinel")) {
     t16 = <Text bold={true}>{getFsImplementation().cwd()}</Text>;
     t17 = <Text>Local model safety check: Is this a folder you trust to share with your local LLM? (For example your own code, trusted open source, or team code.) If not, review its contents before continuing.</Text>;
-    t18 = <Text>claude-dev can read, edit, and execute files in this workspace using local tools.</Text>;
+    t18 = <Text>tiny-crab can read, edit, and execute files in this workspace using local tools.</Text>;
     $[20] = t16;
     $[21] = t17;
     $[22] = t18;
