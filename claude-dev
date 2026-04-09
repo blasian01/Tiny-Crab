@@ -28,8 +28,6 @@ cleanup_tui() {
   tput cnorm >/dev/stderr 2>/dev/null || true
 }
 
-trap cleanup_tui EXIT INT TERM
-
 has_ollama() {
   command -v ollama >/dev/null 2>&1
 }
@@ -234,6 +232,87 @@ warmup_model_with_progress() {
   rm -f "$tmp_out" "$tmp_err"
 }
 
+unload_ollama_model_from_memory() {
+  local model="$1"
+  local generate_url="${OLLAMA_BASE_URL%/}/api/generate"
+  local payload
+
+  if [[ -z "$model" ]]; then
+    return 1
+  fi
+
+  payload=$(printf '{"model":"%s","keep_alive":0}' "$model")
+
+  if command -v curl >/dev/null 2>&1; then
+    if curl -sS --max-time 20 \
+      -H 'Content-Type: application/json' \
+      -X POST "$generate_url" \
+      -d "$payload" >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  if has_ollama; then
+    ollama stop "$model" >/dev/null 2>&1 && return 0
+  fi
+
+  return 1
+}
+
+get_running_ollama_models() {
+  ollama ps 2>/dev/null | awk 'NR > 1 && NF > 0 { print $1 }'
+}
+
+unload_models_on_exit() {
+  local enabled="${CLAUDE_DEV_UNLOAD_ON_EXIT:-1}"
+  local model
+  local seen
+  local existing
+  local -a models=()
+  local -a unique_models=()
+
+  if [[ "$enabled" != "1" ]]; then
+    return 0
+  fi
+  if ! has_ollama; then
+    return 0
+  fi
+
+  while IFS= read -r model; do
+    if [[ -n "$model" ]]; then
+      models+=("$model")
+    fi
+  done < <(get_running_ollama_models)
+
+  if [[ -n "${ACTIVE_MODEL:-}" ]]; then
+    models+=("$ACTIVE_MODEL")
+  fi
+
+  for model in "${models[@]-}"; do
+    seen=0
+    for existing in "${unique_models[@]-}"; do
+      if [[ "$existing" == "$model" ]]; then
+        seen=1
+        break
+      fi
+    done
+    if [[ "$seen" -eq 0 ]]; then
+      unique_models+=("$model")
+    fi
+  done
+
+  for model in "${unique_models[@]-}"; do
+    unload_ollama_model_from_memory "$model" || true
+  done
+}
+
+on_exit() {
+  unload_models_on_exit
+  cleanup_tui
+}
+
+trap on_exit EXIT
+
 OLLAMA_BASE_URL="$(normalize_url "${CLAUDE_DEV_OLLAMA_BASE_URL:-${OLLAMA_HOST:-127.0.0.1:11434}}")"
 DEFAULT_MODEL="${CLAUDE_DEV_DEFAULT_MODEL:-${CLAUDE_OLLAMA_MODEL:-${OLLAMA_MODEL:-llama3.1:8b}}}"
 ACTIVE_MODEL="$DEFAULT_MODEL"
@@ -271,4 +350,10 @@ fi
 
 set_ollama_context_env "$ACTIVE_MODEL"
 
-exec bun "$REPO_DIR/src/entrypoints/cli-dev-bootstrap.ts" "$@"
+if bun "$REPO_DIR/src/entrypoints/cli-dev-bootstrap.ts" "$@"; then
+  exit_code=0
+else
+  exit_code=$?
+fi
+
+exit "$exit_code"

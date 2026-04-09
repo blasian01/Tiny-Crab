@@ -177,6 +177,7 @@ import model from './commands/model/index.js'
 import tag from './commands/tag/index.js'
 import outputStyle from './commands/output-style/index.js'
 import remoteEnv from './commands/remote-env/index.js'
+import unload from './commands/unload/index.js'
 import upgrade from './commands/upgrade/index.js'
 import {
   extraUsage,
@@ -290,6 +291,7 @@ const COMMANDS = memoize((): Command[] => [
   memory,
   mobile,
   model,
+  unload,
   outputStyle,
   remoteEnv,
   plugin,

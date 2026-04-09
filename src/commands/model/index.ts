@@ -5,6 +5,7 @@ import { getMainLoopModel, renderModelName } from '../../utils/model/model.js'
 export default {
   type: 'local-jsx',
   name: 'model',
+  aliases: ['changemodel'],
   get description() {
     return `Set the AI model for Claude Code (currently ${renderModelName(getMainLoopModel())})`
   },
@@ -14,5 +15,4 @@ export default {
   },
   load: () => import('./model.js'),
 } satisfies Command
-
 
