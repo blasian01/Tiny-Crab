@@ -1,4 +1,3 @@
-import { BROWSER_TOOLS } from '@ant/claude-for-chrome-mcp'
 import { chmod, mkdir, readFile, writeFile } from 'fs/promises'
 import { homedir } from 'os'
 import { join } from 'path'
@@ -28,6 +27,7 @@ import {
   getAllWindowsRegistryKeys,
   openInChrome,
 } from './common.js'
+import { BROWSER_TOOLS } from './browserTools.js'
 import { getChromeSystemPrompt } from './prompt.js'
 import { isChromeExtensionInstalledPortable } from './setupPortable.js'
 
@@ -398,4 +398,3 @@ export async function isChromeExtensionInstalled(): Promise<boolean> {
   }
   return isChromeExtensionInstalledPortable(browserPaths, logForDebugging)
 }
-
