@@ -1,5 +1,4 @@
 import type { AnyValueMap, Logger, logs } from '@opentelemetry/api-logs'
-import { resourceFromAttributes } from '@opentelemetry/resources'
 import {
   BatchLogRecordProcessor,
   LoggerProvider,
@@ -13,6 +12,7 @@ import { isEqual } from 'lodash-es'
 import { getOrCreateUserID } from '../../utils/config.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { logError } from '../../utils/log.js'
+import { resourceFromAttributes } from '../../utils/otelResources.js'
 import { getPlatform, getWslVersion } from '../../utils/platform.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import { profileCheckpoint } from '../../utils/startupProfiler.js'
@@ -447,4 +447,3 @@ export async function reinitialize1PEventLoggingIfConfigChanged(): Promise<void>
 
   void oldProvider.shutdown().catch(() => {})
 }
-

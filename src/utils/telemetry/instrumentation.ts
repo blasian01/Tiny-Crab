@@ -8,7 +8,7 @@ import {
   hostDetector,
   osDetector,
   resourceFromAttributes,
-} from '@opentelemetry/resources'
+} from '../otelResources.js'
 import {
   BatchLogRecordProcessor,
   ConsoleLogRecordExporter,
@@ -823,4 +823,3 @@ function getOTLPExporterConfig() {
   config.httpAgentOptions = agentFactory
   return config
 }
-
