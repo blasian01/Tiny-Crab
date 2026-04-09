@@ -244,9 +244,14 @@ set_env_if_needed CLAUDE_CODE_LOCAL_MODEL_MODE "${CLAUDE_CODE_LOCAL_MODEL_MODE:-
 # Local Ollama mode should not call nonessential Anthropic endpoints.
 set_env_if_needed CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC "${CLAUDE_DEV_DISABLE_NONESSENTIAL_TRAFFIC:-1}" 0
 
-# Always default the local build to Ollama unless the user already exported values.
-set_ollama_model_env "$DEFAULT_MODEL" 0
-ACTIVE_MODEL="${ANTHROPIC_MODEL:-$DEFAULT_MODEL}"
+# Hard-disable cloud/provider auth paths in local mode.
+unset CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX CLAUDE_CODE_USE_FOUNDRY
+unset USE_STAGING_OAUTH USE_LOCAL_OAUTH
+unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR
+
+# Force this launcher to use Ollama wiring.
+set_ollama_model_env "$DEFAULT_MODEL" 1
+ACTIVE_MODEL="$DEFAULT_MODEL"
 
 if should_use_model_picker "$@"; then
   if ! has_ollama; then

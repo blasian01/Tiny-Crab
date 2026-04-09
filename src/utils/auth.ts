@@ -52,6 +52,7 @@ import {
   getClaudeConfigHomeDir,
   isBareMode,
   isEnvTruthy,
+  isLocalModelMode,
   isRunningOnHomespace,
 } from './envUtils.js'
 import { errorMessage } from './errors.js'
@@ -98,6 +99,8 @@ function isManagedOAuthContext(): boolean {
 /** Whether we are supporting direct 1P auth. */
 // this code is closely related to getAuthTokenSource
 export function isAnthropicAuthEnabled(): boolean {
+  if (isLocalModelMode()) return false
+
   // --bare: API-key-only, never OAuth.
   if (isBareMode()) return false
 
@@ -1450,6 +1453,10 @@ async function checkAndRefreshOAuthTokenIfNeededImpl(
 ): Promise<boolean> {
   const MAX_RETRIES = 5
 
+  if (!isAnthropicAuthEnabled()) {
+    return false
+  }
+
   await invalidateOAuthCacheIfDiskChanged()
 
   // First check if token is expired with cached value
@@ -2000,4 +2007,3 @@ export async function validateForceLoginOrg(): Promise<OrgValidationResult> {
 }
 
 class GcpCredentialsTimeoutError extends Error {}
-

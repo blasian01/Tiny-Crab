@@ -168,6 +168,7 @@ import {
 } from './utils/plugins/loadPluginCommands.js'
 import memoize from 'lodash-es/memoize.js'
 import { isUsing3PServices, isClaudeAISubscriber } from './utils/auth.js'
+import { isLocalModelMode } from './utils/envUtils.js'
 import { isFirstPartyAnthropicBaseUrl } from './utils/model/providers.js'
 import env from './commands/env/index.js'
 import exit from './commands/exit/index.js'
@@ -336,7 +337,7 @@ const COMMANDS = memoize((): Command[] => [
   hooks,
   exportCommand,
   sandboxToggle,
-  ...(!isUsing3PServices() ? [logout, login()] : []),
+  ...(!isLocalModelMode() && !isUsing3PServices() ? [logout, login()] : []),
   passes,
   ...(peersCmd ? [peersCmd] : []),
   tasks,
@@ -470,6 +471,20 @@ const loadAllCommands = memoize(async (cwd: string): Promise<Command[]> => {
   ]
 })
 
+const LOCAL_MODE_BLOCKED_COMMAND_NAMES = new Set([
+  'chrome',
+  'feedback',
+  'install-github-app',
+  'install-slack-app',
+  'login',
+  'logout',
+  'mobile',
+  'release-notes',
+  'setup-token',
+  'upgrade',
+  'x402',
+])
+
 /**
  * Returns commands available to the current user. The expensive loading is
  * memoized, but availability and isEnabled checks run fresh every call so
@@ -482,9 +497,15 @@ export async function getCommands(cwd: string): Promise<Command[]> {
   const dynamicSkills = getDynamicSkills()
 
   // Build base commands without dynamic skills
-  const baseCommands = allCommands.filter(
+  let baseCommands = allCommands.filter(
     _ => meetsAvailabilityRequirement(_) && isCommandEnabled(_),
   )
+
+  if (isLocalModelMode()) {
+    baseCommands = baseCommands.filter(
+      c => !LOCAL_MODE_BLOCKED_COMMAND_NAMES.has(c.name),
+    )
+  }
 
   if (dynamicSkills.length === 0) {
     return baseCommands
@@ -754,5 +775,3 @@ export function formatDescriptionWithSource(cmd: Command): string {
 
   return `${cmd.description} (${getSettingSourceName(cmd.source)})`
 }
-
-

@@ -36,6 +36,35 @@ export function isEnvTruthy(envVar: string | boolean | undefined): boolean {
   return ['1', 'true', 'yes', 'on'].includes(normalizedValue)
 }
 
+export function isLocalModelMode(): boolean {
+  return isEnvTruthy(process.env.CLAUDE_CODE_LOCAL_MODEL_MODE)
+}
+
+export function isLoopbackHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().trim()
+  return (
+    normalized === 'localhost' ||
+    normalized === '::1' ||
+    normalized === '127.0.0.1' ||
+    normalized.startsWith('127.')
+  )
+}
+
+export function isLoopbackHttpUrl(rawUrl: string | undefined): boolean {
+  if (!rawUrl) {
+    return false
+  }
+  try {
+    const parsed = new URL(rawUrl)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false
+    }
+    return isLoopbackHost(parsed.hostname)
+  } catch {
+    return false
+  }
+}
+
 export function isEnvDefinedFalsy(
   envVar: string | boolean | undefined,
 ): boolean {
@@ -181,4 +210,3 @@ export function getVertexRegionForModel(
   }
   return getDefaultVertexRegion()
 }
-

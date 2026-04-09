@@ -27,6 +27,8 @@ import {
   getAWSRegion,
   getVertexRegionForModel,
   isEnvTruthy,
+  isLocalModelMode,
+  isLoopbackHttpUrl,
 } from '../../utils/envUtils.js'
 
 /**
@@ -85,6 +87,28 @@ function createStderrLogger(): ClientOptions['logger'] {
   }
 }
 
+function assertLocalModeApiConfiguration(): void {
+  if (!isLocalModelMode()) {
+    return
+  }
+
+  if (
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
+  ) {
+    throw new Error(
+      'Local mode only supports Ollama. Disable Bedrock/Vertex/Foundry provider flags.',
+    )
+  }
+
+  if (!isLoopbackHttpUrl(process.env.ANTHROPIC_BASE_URL)) {
+    throw new Error(
+      'Local mode requires ANTHROPIC_BASE_URL to be a loopback Ollama endpoint (for example http://127.0.0.1:11434).',
+    )
+  }
+}
+
 export async function getAnthropicClient({
   apiKey,
   maxRetries,
@@ -98,6 +122,8 @@ export async function getAnthropicClient({
   fetchOverride?: ClientOptions['fetch']
   source?: string
 }): Promise<Anthropic> {
+  assertLocalModeApiConfiguration()
+
   const containerId = process.env.CLAUDE_CODE_CONTAINER_ID
   const remoteSessionId = process.env.CLAUDE_CODE_REMOTE_SESSION_ID
   const clientApp = process.env.CLAUDE_AGENT_SDK_CLIENT_APP
@@ -399,4 +425,3 @@ function buildFetch(
     return inner(input, { ...init, headers })
   }
 }
-
