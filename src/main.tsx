@@ -855,6 +855,11 @@ export async function main() {
   profileCheckpoint('main_after_run');
 }
 async function getInputPrompt(prompt: string, inputFormat: 'text' | 'stream-json'): Promise<string | AsyncIterable<string>> {
+  // In local mode, if the prompt was provided as an argument, don't probe
+  // stdin. Some shells/wrappers keep stdin open indefinitely without EOF.
+  if (isLocalModelMode() && prompt && inputFormat !== 'stream-json') {
+    return prompt;
+  }
   if (!process.stdin.isTTY &&
   // Input hijacking breaks MCP.
   !process.argv.includes('mcp')) {
