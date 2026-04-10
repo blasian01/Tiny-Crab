@@ -7,3 +7,4 @@ export function initializePolicyLimitsLoadingPromise(...args: any[]) { return nu
 export function waitForPolicyLimitsToLoad(...args: any[]) { return null as any }
 export function refreshPolicyLimits(...args: any[]) { return null as any }
 export function loadPolicyLimits(...args: any[]) { return null as any }
+export function clearPolicyLimitsCache() {}

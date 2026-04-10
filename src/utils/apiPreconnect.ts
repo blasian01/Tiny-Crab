@@ -24,13 +24,18 @@
  */
 
 import { getOauthConfig } from '../constants/oauth.js'
-import { isEnvTruthy } from './envUtils.js'
+import { isEnvTruthy, isLocalModelMode } from './envUtils.js'
 
 let fired = false
 
 export function preconnectAnthropicApi(): void {
   if (fired) return
   fired = true
+
+  // Tiny Crab: skip preconnect in local model mode — we connect to localhost Ollama
+  if (isLocalModelMode()) {
+    return
+  }
 
   // Skip if using a cloud provider — different endpoint + auth
   if (

@@ -7,3 +7,4 @@ export function currentLimits(...args: any[]) { return null as any }
 export function extractQuotaStatusFromError(...args: any[]) { return null as any }
 export function extractQuotaStatusFromHeaders(...args: any[]) { return null as any }
 export function checkQuotaStatus(...args: any[]) { return null as any }
+export function statusListeners(...args: any[]) { return null as any }

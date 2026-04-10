@@ -5,3 +5,6 @@ export function shouldUseClaudeAIAuth(...args: any[]) { return null as any }
 export function isOAuthTokenExpired(...args: any[]) { return null as any }
 export function getOrganizationUUID(...args: any[]) { return null as any }
 export function populateOAuthAccountInfoIfNeeded(...args: any[]) { return null as any }
+export function storeOAuthAccountInfo(...args: any[]) { return null as any }
+export function fetchAndStoreUserRoles(...args: any[]) { return null as any }
+export function createAndStoreApiKey(...args: any[]) { return null as any }

@@ -583,7 +583,6 @@ const _pendingSSH: PendingSSH | undefined = feature('SSH_REMOTE') ? {
   extraCliArgs: []
 } : undefined;
 export async function main() {
-  profileCheckpoint('main_function_start');
 
   // SECURITY: Prevent Windows from executing commands from current directory
   // This must be set before ANY command execution to prevent PATH hijacking attacks
@@ -985,16 +984,13 @@ async function run(): Promise<CommanderCommand> {
   // Use preAction hook to run initialization only when executing a command,
   // not when displaying help. This avoids the need for env variable signaling.
   program.hook('preAction', async thisCommand => {
-    profileCheckpoint('preAction_start');
     // Await async subprocess loads started at module evaluation (lines 12-20).
     // Nearly free — subprocesses complete during the ~135ms of imports above.
     // Must resolve before init() which triggers the first settings read
     // (applySafeConfigEnvironmentVariables → getSettingsForSource('policySettings')
     // → isRemoteManagedSettingsEligible → sync keychain reads otherwise ~65ms).
     await Promise.all([ensureMdmSettingsLoaded(), ensureKeychainPrefetchCompleted()]);
-    profileCheckpoint('preAction_after_mdm');
     await init();
-    profileCheckpoint('preAction_after_init');
 
     // process.title on Windows sets the console title directly; on POSIX,
     // terminal shell integration may mirror the process name to the tab.
@@ -1088,7 +1084,6 @@ async function run(): Promise<CommanderCommand> {
   // top-level option. Single-value + collect accumulator means each
   // --plugin-dir takes exactly one arg; repeat the flag for multiple dirs.
   .option('--plugin-dir <path>', 'Load plugins from a directory for this session only (repeatable: --plugin-dir A --plugin-dir B)', (val: string, prev: string[]) => [...prev, val], [] as string[]).option('--disable-slash-commands', 'Disable all skills', () => true).option('--chrome', 'Enable Claude in Chrome integration').option('--no-chrome', 'Disable Claude in Chrome integration').option('--file <specs...>', 'File resources to download at startup. Format: file_id:relative_path (e.g., --file file_abc:doc.txt file_def:img.png)').action(async (prompt, options) => {
-    profileCheckpoint('action_handler_start');
 
     // --bare = one-switch minimal mode. Sets SIMPLE so all the existing
     // gates fire (CLAUDE.md, skills, hooks inside executeHooks, agent
@@ -1888,7 +1883,6 @@ async function run(): Promise<CommanderCommand> {
     // Both interactive and -p use getClaudeCodeMcpConfigs (local file reads only).
     // The local promise is awaited later (before prefetchAllMcpResources) to
     // overlap config I/O with setup(), commands loading, and trust dialog.
-    logForDebugging('[STARTUP] Loading MCP configs...');
     const mcpConfigStart = Date.now();
     let mcpConfigResolvedMs: number | undefined;
     // --bare skips auto-discovered MCP (.mcp.json, user settings, plugins) —
@@ -1946,8 +1940,6 @@ async function run(): Promise<CommanderCommand> {
       process.exit(1);
     }
     const effectivePrompt = prompt || '';
-    let inputPrompt = await getInputPrompt(effectivePrompt, (inputFormat ?? 'text') as 'text' | 'stream-json');
-    profileCheckpoint('action_after_input_prompt');
 
     // Activate proactive mode BEFORE getTools() so SleepTool.isEnabled()
     // (which returns isProactiveActive()) passes and Sleep is included.
@@ -1963,7 +1955,6 @@ async function run(): Promise<CommanderCommand> {
       } = await import('./utils/toolPool.js');
       tools = applyCoordinatorToolFilter(tools);
     }
-    profileCheckpoint('action_tools_loaded');
     let jsonSchema: ToolInputJSONSchema | undefined;
     if (isSyntheticOutputToolEnabled({
       isNonInteractiveSession
@@ -1989,8 +1980,6 @@ async function run(): Promise<CommanderCommand> {
     }
 
     // IMPORTANT: setup() must be called before any other code that depends on the cwd or worktree setup
-    profileCheckpoint('action_before_setup');
-    logForDebugging('[STARTUP] Running setup()...');
     const setupStart = Date.now();
     const {
       setup
@@ -2110,13 +2099,10 @@ async function run(): Promise<CommanderCommand> {
     // Reuse preSetupCwd unless setup() chdir'd (worktreeEnabled). Saves a
     // getCwd() syscall in the common path.
     const currentCwd = worktreeEnabled ? getCwd() : preSetupCwd;
-    logForDebugging('[STARTUP] Loading commands and agents...');
-    const commandsStart = Date.now();
     // Join the promises kicked before setup() (or start fresh if
     // worktreeEnabled gated the early kick). Both memoized by cwd.
     const [commands, agentDefinitionsResult] = await Promise.all([commandsPromise ?? getCommands(currentCwd), agentDefsPromise ?? getAgentDefinitionsWithOverrides(currentCwd)]);
     logForDebugging(`[STARTUP] Commands and agents loaded in ${Date.now() - commandsStart}ms`);
-    profileCheckpoint('action_commands_loaded');
 
     // Parse CLI agents if provided via --agents flag
     let cliAgents: typeof agentDefinitionsResult.activeAgents = [];
@@ -2583,7 +2569,7 @@ async function run(): Promise<CommanderCommand> {
     registerCleanup(async () => {
       logForDiagnosticsNoPII('info', 'exited');
     });
-    void logTenguInit({
+      if (!isLocalModelMode()) { void logTenguInit({
       hasInitialPrompt: Boolean(prompt),
       hasStdin: Boolean(inputPrompt),
       verbose,
@@ -2606,12 +2592,14 @@ async function run(): Promise<CommanderCommand> {
       appendSystemPromptFlag: appendSystemPrompt ? options.appendSystemPromptFile ? 'file' : 'flag' : undefined,
       thinkingConfig,
       assistantActivationPath: feature('KAIROS') && kairosEnabled ? assistantModule?.getAssistantActivationPath() : undefined
-    });
+    }); }
 
     // Log context metrics once at initialization
-    void logContextMetrics(regularMcpConfigs, toolPermissionContext);
-    void logPermissionContextForAnts(null, 'initialization');
-    logManagedSettings();
+    if (!isLocalModelMode()) {
+      void logContextMetrics(regularMcpConfigs, toolPermissionContext);
+      void logPermissionContextForAnts(null, 'initialization');
+      logManagedSettings();
+    }
 
     // Register PID file for concurrent-session detection (~/.claude/sessions/)
     // and fire multi-clauding telemetry. Lives here (not init.ts) so only the
@@ -2911,7 +2899,6 @@ async function run(): Promise<CommanderCommand> {
         }
       }
       logSessionTelemetry();
-      profileCheckpoint('before_print_import');
       const {
         runHeadless
       } = await import('src/cli/print.js');
@@ -3960,7 +3947,6 @@ async function run(): Promise<CommanderCommand> {
   if (feature('HARD_FAIL')) {
     program.addOption(new Option('--hard-fail', 'Crash on logError calls instead of silently logging').hideHelp());
   }
-  profileCheckpoint('run_main_options_built');
 
   // -p/--print mode: skip subcommand registration. The 52 subcommands
   // (mcp, auth, plugin, skill, task, config, doctor, update, etc.) are
@@ -3973,7 +3959,6 @@ async function run(): Promise<CommanderCommand> {
   const isPrintMode = process.argv.includes('-p') || process.argv.includes('--print');
   const isCcUrl = process.argv.some(a => a.startsWith('cc://') || a.startsWith('cc+unix://'));
   if (isPrintMode && !isCcUrl) {
-    profileCheckpoint('run_before_parse');
     await program.parseAsync(process.argv);
     profileCheckpoint('run_after_parse');
     return program;
@@ -4605,7 +4590,6 @@ Examples:
     hideLocalModeOnlyRootFlags(program);
     assertNoUnsupportedLocalModeFlags(process.argv.slice(2));
   }
-  profileCheckpoint('run_before_parse');
   await program.parseAsync(process.argv);
   profileCheckpoint('run_after_parse');
 

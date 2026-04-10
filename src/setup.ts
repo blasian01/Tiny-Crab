@@ -64,7 +64,6 @@ export async function setup(
   worktreePRNumber?: number,
   messagingSocketPath?: string,
 ): Promise<void> {
-  logForDiagnosticsNoPII('info', 'setup_started')
 
   // Check for Node.js version < 18
   const nodeVersion = process.version.match(/^v(\d+)\./)?.[1]
@@ -92,7 +91,6 @@ export async function setup(
     // --messaging-socket-path is passed. Awaited so the server is bound
     // and $CLAUDE_CODE_MESSAGING_SOCKET is exported before any hook
     // (SessionStart in particular) can spawn and snapshot process.env.
-    if (feature('UDS_INBOX')) {
       const m = await import('./utils/udsMessaging.js')
       await m.startUdsMessaging(
         messagingSocketPath ?? m.getDefaultUdsSocketPath(),
@@ -303,7 +301,6 @@ export async function setup(
   void lockCurrentVersion() // Lock current version to prevent deletion by other processes
   logForDiagnosticsNoPII('info', 'setup_background_jobs_launched')
 
-  profileCheckpoint('setup_before_prefetch')
   // Pre-fetch promises - only items needed before render
   logForDiagnosticsNoPII('info', 'setup_prefetch_starting')
   // When CLAUDE_CODE_SYNC_PLUGIN_INSTALL is set, skip all plugin prefetch.
@@ -378,7 +375,6 @@ export async function setup(
   logEvent('tengu_started', {})
 
   void prefetchApiKeyFromApiKeyHelperIfSafe(getIsNonInteractiveSession()) // Prefetch safely - only executes if trust already confirmed
-  profileCheckpoint('setup_after_prefetch')
 
   // Pre-fetch data for Logo v2 - await to ensure it's ready before logo renders.
   // --bare / SIMPLE: skip — release notes are interactive-UI display data,

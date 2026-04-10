@@ -712,6 +712,12 @@ export function resetInMemoryState(): void {
  * @returns Promise that resolves when initialization is complete
  */
 export async function initializeVersionedPlugins(): Promise<void> {
+  // Tiny Crab: skip marketplace-dependent migration in local mode
+  const { isLocalModelMode } = await import('../envUtils.js')
+  if (isLocalModelMode()) {
+    return
+  }
+
   // Step 1: Migrate to single file format (consolidates V1/V2 files, cleans up legacy cache)
   migrateToSinglePluginFile()
 

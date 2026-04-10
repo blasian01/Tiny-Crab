@@ -211,7 +211,6 @@ export const init = memoize(async (): Promise<void> => {
     logForDiagnosticsNoPII('info', 'init_completed', {
       duration_ms: Date.now() - initStartTime,
     })
-    profileCheckpoint('init_function_end')
   } catch (error) {
     if (error instanceof ConfigParseError) {
       // Skip the interactive Ink dialog when we can't safely render it.

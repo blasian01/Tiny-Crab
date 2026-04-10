@@ -22,7 +22,7 @@
  */
 
 import { execFile } from 'child_process'
-import { isBareMode } from '../envUtils.js'
+import { isBareMode, isLocalModelMode } from '../envUtils.js'
 import {
   CREDENTIALS_SERVICE_SUFFIX,
   getMacOsKeychainStorageServiceName,
@@ -67,7 +67,7 @@ function spawnSecurity(serviceName: string): Promise<SpawnResult> {
  * immediately after startMdmRawRead(). Non-darwin is a no-op.
  */
 export function startKeychainPrefetch(): void {
-  if (process.platform !== 'darwin' || prefetchPromise || isBareMode()) return
+  if (process.platform !== 'darwin' || prefetchPromise || isBareMode() || isLocalModelMode()) return
 
   // Fire both subprocesses immediately (non-blocking). They run in parallel
   // with each other AND with main.tsx imports. The await in Promise.all
