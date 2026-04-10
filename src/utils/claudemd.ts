@@ -1,7 +1,7 @@
 /**
  * Files are loaded in the following order:
  *
- * 1. Managed memory (eg. /etc/claude-code/CLAUDE.md) - Global instructions for all users
+ * 1. Managed memory (eg. /etc/tiny-crab/CLAUDE.md) - Global instructions for all users
  * 2. User memory (~/.claude/CLAUDE.md) - Private global instructions for all projects
  * 3. Project memory (CLAUDE.md, .claude/CLAUDE.md, and .claude/rules/*.md in project roots) - Instructions checked into the codebase
  * 4. Local memory (CLAUDE.local.md in project roots) - Private project-specific instructions
@@ -864,7 +864,7 @@ export const getMemoryFiles = memoize(
     // directories above the worktree but within the main repo — the worktree
     // already has its own checkout. CLAUDE.local.md is gitignored so it only
     // exists in the main repo and is still loaded.
-    // See: https://github.com/anthropics/claude-code/issues/29599
+    // See: https://github.com/blasian01/Tiny-Crab/issues/29599
     const gitRoot = findGitRoot(originalCwd)
     const canonicalRoot = findCanonicalGitRoot(originalCwd)
     const isNestedWorktree =

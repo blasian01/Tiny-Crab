@@ -7,8 +7,8 @@ const runtimeMacro = {
   PACKAGE_URL: 'tiny-crab',
   NATIVE_PACKAGE_URL: 'tiny-crab',
   ISSUES_EXPLAINER:
-    'report issues at https://github.com/blasian01/claude-code/issues',
-  FEEDBACK_CHANNEL: 'https://github.com/blasian01/claude-code/issues',
+    'report issues at https://github.com/blasian01/tiny-crab/issues',
+  FEEDBACK_CHANNEL: 'https://github.com/blasian01/tiny-crab/issues',
   BUILD_TIME: '',
   VERSION_CHANGELOG: '',
 }

@@ -129,7 +129,7 @@ export async function authLogin({
 
   const settings = getInitialSettings()
   // forceLoginMethod is a hard constraint (enterprise setting) — matches ConsoleOAuthFlow behavior.
-  // Without it, --console selects Console; --claudeai (or no flag) selects claude.ai.
+  // Without it, --console selects Console; --claudeai (or no flag) selects github.com/blasian01/Tiny-Crab.
   const loginWithClaudeAi = settings.forceLoginMethod
     ? settings.forceLoginMethod === 'claudeai'
     : !useConsole
@@ -247,8 +247,8 @@ export async function authStatus(opts: {
   let authMethod: string = 'none'
   if (using3P) {
     authMethod = 'third_party'
-  } else if (authTokenSource === 'claude.ai') {
-    authMethod = 'claude.ai'
+  } else if (authTokenSource === 'github.com/blasian01/Tiny-Crab') {
+    authMethod = 'github.com/blasian01/Tiny-Crab'
   } else if (authTokenSource === 'apiKeyHelper') {
     authMethod = 'api_key_helper'
   } else if (authTokenSource !== 'none') {
@@ -256,7 +256,7 @@ export async function authStatus(opts: {
   } else if (apiKeySource === 'ANTHROPIC_API_KEY' || hasApiKeyEnvVar) {
     authMethod = 'api_key'
   } else if (apiKeySource === '/login managed key') {
-    authMethod = 'claude.ai'
+    authMethod = 'github.com/blasian01/Tiny-Crab'
   }
 
   if (opts.text) {
@@ -306,7 +306,7 @@ export async function authStatus(opts: {
     if (resolvedApiKeySource) {
       output.apiKeySource = resolvedApiKeySource
     }
-    if (authMethod === 'claude.ai') {
+    if (authMethod === 'github.com/blasian01/Tiny-Crab') {
       output.email = oauthAccount?.emailAddress ?? null
       output.orgId = oauthAccount?.organizationUuid ?? null
       output.orgName = oauthAccount?.organizationName ?? null

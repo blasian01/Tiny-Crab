@@ -240,7 +240,7 @@ export function useVoice({
   const retryUsedRef = useRef(false)
   // Full audio captured this session, kept for silent-drop replay. ~1% of
   // sessions get a sticky-broken CE pod that accepts audio but returns zero
-  // transcripts (anthropics/anthropic#287008 session-sticky variant); when
+  // transcripts (blasian01/anthropic#287008 session-sticky variant); when
   // finalize() resolves via no_data_timeout with hadAudioSignal=true, we
   // replay the buffer on a fresh WS once. Bounded: 32KB/s × ~60s max ≈ 2MB.
   const fullAudioRef = useRef<Buffer[]>([])
@@ -501,7 +501,7 @@ export function useVoice({
           } else if (!hadAudioSignal) {
             // Distinguish silent mic (capture issue) from speech not recognized.
             onErrorRef.current?.(
-              'No audio detected from microphone. Check that the correct input device is selected and that Claude Code has microphone access.',
+              'No audio detected from microphone. Check that the correct input device is selected and that Tiny Crab has microphone access.',
             )
           } else {
             onErrorRef.current?.('No speech detected.')
@@ -761,7 +761,7 @@ export function useVoice({
     // Retry once if the connection errors before delivering any transcript.
     // The conversation-engine proxy can reject rapid reconnects (~1/N_pods
     // same-pod collision) or CE's Deepgram upstream can fail during its own
-    // teardown window (anthropics/anthropic#287008 surfaces this as
+    // teardown window (blasian01/anthropic#287008 surfaces this as
     // TranscriptError instead of silent-drop). A 250ms backoff clears both.
     // Audio captured during the retry window routes to audioBuffer (via the
     // connectionRef.current null check in the recording callback above) and

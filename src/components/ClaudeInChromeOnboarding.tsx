@@ -6,7 +6,7 @@ import { Box, Link, Newline, Text, useInput } from '../ink.js';
 import { isChromeExtensionInstalled } from '../utils/claudeInChrome/setup.js';
 import { saveGlobalConfig } from '../utils/config.js';
 import { Dialog } from './design-system/Dialog.js';
-const CHROME_EXTENSION_URL = 'https://claude.ai/chrome';
+const CHROME_EXTENSION_URL = 'https://github.com/blasian01/Tiny-Crab/chrome';
 const CHROME_PERMISSIONS_URL = 'https://clau.de/chrome/permissions';
 type Props = {
   onDone(): void;
@@ -56,7 +56,7 @@ export function ClaudeInChromeOnboarding(t0) {
   }
   let t5;
   if ($[6] !== t4) {
-    t5 = <Text>Claude in Chrome works with the Chrome extension to let you control your browser directly from Claude Code. You can navigate websites, fill forms, capture screenshots, record GIFs, and debug with console logs and network requests.{t4}</Text>;
+    t5 = <Text>Claude in Chrome works with the Chrome extension to let you control your browser directly from Tiny Crab. You can navigate websites, fill forms, capture screenshots, record GIFs, and debug with console logs and network requests.{t4}</Text>;
     $[6] = t4;
     $[7] = t5;
   } else {

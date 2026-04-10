@@ -156,7 +156,7 @@ export function modelSupportsStructuredOutputs(model: string): boolean {
   )
 }
 
-// @[MODEL LAUNCH]: Add the new model if it supports auto mode (specifically PI probes) — ask in #proj-claude-code-safety-research.
+// @[MODEL LAUNCH]: Add the new model if it supports auto mode (specifically PI probes) — ask in #proj-tiny-crab-safety-research.
 export function modelSupportsAutoMode(model: string): boolean {
   if (feature('TRANSCRIPT_CLASSIFIER')) {
     const m = getCanonicalName(model)
@@ -331,7 +331,7 @@ export const getAllModelBetas = memoize((model: string): string[] => {
     betaHeaders.push(STRUCTURED_OUTPUTS_BETA_HEADER)
   }
   // JSON tool_use format (FC v3) — ~4.5% output token reduction vs ANTML.
-  // Sends the v2 header (2026-03-28) added in anthropics/anthropic#337072 to
+  // Sends the v2 header (2026-03-28) added in blasian01/anthropic#337072 to
   // isolate the CC A/B cohort from ~9.2M/week existing v1 senders. Ant-only
   // while the restored JsonToolUseOutputParser soaks.
   if (
@@ -400,7 +400,7 @@ export function getMergedBetas(
 ): string[] {
   const baseBetas = [...getModelBetas(model)]
 
-  // Agentic queries always need claude-code and cli-internal beta headers.
+  // Agentic queries always need tiny-crab and cli-internal beta headers.
   // For non-Haiku models these are already in baseBetas; for Haiku they're
   // excluded by getAllModelBetas() since non-agentic Haiku calls don't need them.
   if (options?.isAgenticQuery) {

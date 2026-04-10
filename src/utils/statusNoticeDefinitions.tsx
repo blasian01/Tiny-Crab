@@ -125,13 +125,13 @@ const bothAuthMethodsNotice: StatusNoticeDefinition = {
         <Box flexDirection="column" marginLeft={3}>
           <Text color="warning">
             · Trying to use{' '}
-            {authTokenInfo.source === 'claude.ai' ? 'claude.ai' : authTokenInfo.source}
+            {authTokenInfo.source === 'github.com/blasian01/Tiny-Crab' ? 'github.com/blasian01/Tiny-Crab' : authTokenInfo.source}
             ?{' '}
             {apiKeySource === 'ANTHROPIC_API_KEY' ? 'Unset the ANTHROPIC_API_KEY environment variable, or claude /logout then say "No" to the API key approval before login.' : apiKeySource === 'apiKeyHelper' ? 'Unset the apiKeyHelper setting.' : 'claude /logout'}
           </Text>
           <Text color="warning">
             · Trying to use {apiKeySource}?{' '}
-            {authTokenInfo.source === 'claude.ai' ? 'claude /logout to sign out of claude.ai.' : `Unset the ${authTokenInfo.source} environment variable.`}
+            {authTokenInfo.source === 'github.com/blasian01/Tiny-Crab' ? 'claude /logout to sign out of github.com/blasian01/Tiny-Crab.' : `Unset the ${authTokenInfo.source} environment variable.`}
           </Text>
         </Box>
       </Box>;
@@ -182,7 +182,7 @@ const jetbrainsPluginNotice: StatusNoticeDefinition = {
         <Text>
           Install the <Text color="ide">{ideName}</Text> plugin from the
           JetBrains Marketplace:{' '}
-          <Text bold>https://docs.claude.com/s/claude-code-jetbrains</Text>
+          <Text bold>https://docs.claude.com/s/tiny-crab-jetbrains</Text>
         </Text>
       </Box>;
   }

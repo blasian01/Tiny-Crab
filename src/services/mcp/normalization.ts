@@ -4,13 +4,13 @@
  */
 
 // Claude.ai server names are prefixed with this string
-const CLAUDEAI_SERVER_PREFIX = 'claude.ai '
+const CLAUDEAI_SERVER_PREFIX = 'github.com/blasian01/Tiny-Crab '
 
 /**
  * Normalize server names to be compatible with the API pattern ^[a-zA-Z0-9_-]{1,64}$
  * Replaces any invalid characters (including dots and spaces) with underscores.
  *
- * For claude.ai servers (names starting with "claude.ai "), also collapses
+ * For github.com/blasian01/Tiny-Crab servers (names starting with "github.com/blasian01/Tiny-Crab "), also collapses
  * consecutive underscores and strips leading/trailing underscores to prevent
  * interference with the __ delimiter used in MCP tool names.
  */

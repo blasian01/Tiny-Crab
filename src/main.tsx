@@ -528,7 +528,7 @@ function initializeEntrypoint(isNonInteractive: boolean): void {
     return;
   }
   if (isEnvTruthy(process.env.CLAUDE_CODE_ACTION)) {
-    process.env.CLAUDE_CODE_ENTRYPOINT = 'claude-code-github-action';
+    process.env.CLAUDE_CODE_ENTRYPOINT = 'tiny-crab-github-action';
     return;
   }
 
@@ -663,7 +663,7 @@ export async function main() {
     // URL arrives via Apple Event (not argv). LaunchServices overwrites
     // __CFBundleIdentifier to the launching bundle's ID, which is a precise
     // positive signal — cheaper than importing and guessing with heuristics.
-    if (process.platform === 'darwin' && process.env.__CFBundleIdentifier === 'com.anthropic.claude-code-url-handler') {
+    if (process.platform === 'darwin' && process.env.__CFBundleIdentifier === 'com.anthropic.tiny-crab-url-handler') {
       const {
         enableConfigs
       } = await import('./utils/config.js');
@@ -1048,7 +1048,7 @@ async function run(): Promise<CommanderCommand> {
     profileCheckpoint('preAction_after_settings_sync');
   });
   const cliName = localModelMode ? 'tiny-crab' : 'claude';
-  const programDescription = localModelMode ? 'Local agentic coding CLI (Ollama / LM Studio local mode)' : 'Claude Code - starts an interactive session by default, use -p/--print for non-interactive output';
+  const programDescription = localModelMode ? 'Local agentic coding CLI (Ollama / LM Studio local mode)' : 'Tiny Crab - starts an interactive session by default, use -p/--print for non-interactive output';
   program.name(cliName).description(programDescription).argument('[prompt]', 'Your prompt', String)
   // Subcommands inherit helpOption via commander's copyInheritedSettings —
   // setting it once here covers mcp, plugin, auth, and all other subcommands.
@@ -1103,7 +1103,7 @@ async function run(): Promise<CommanderCommand> {
     if (prompt === 'code') {
       logEvent('tengu_code_prompt_ignored', {});
       // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.warn(chalk.yellow(`Tip: You can launch ${localModelMode ? 'Tiny Crab' : 'Claude Code'} with just \`${cliName}\``));
+      console.warn(chalk.yellow(`Tip: You can launch ${localModelMode ? 'Tiny Crab' : 'Tiny Crab'} with just \`${cliName}\``));
       prompt = undefined;
     }
 
@@ -1610,7 +1610,7 @@ async function run(): Promise<CommanderCommand> {
       }
     }
 
-    // Extract Claude in Chrome option and enforce claude.ai subscriber check (unless user is ant)
+    // Extract Claude in Chrome option and enforce github.com/blasian01/Tiny-Crab subscriber check (unless user is ant)
     const chromeOpts = options as {
       chrome?: boolean;
     };
@@ -1865,12 +1865,12 @@ async function run(): Promise<CommanderCommand> {
     });
     void assertMinVersion();
 
-    // claude.ai config fetch: -p mode only (interactive uses useManageMCPConnections
+    // github.com/blasian01/Tiny-Crab config fetch: -p mode only (interactive uses useManageMCPConnections
     // two-phase loading). Kicked off here to overlap with setup(); awaited
     // before runHeadless so single-turn -p sees connectors. Skipped under
     // enterprise/strict MCP to preserve policy boundaries.
     const claudeaiConfigPromise: Promise<Record<string, ScopedMcpServerConfig>> = isNonInteractiveSession && !strictMcpConfig && !doesEnterpriseMcpConfigExist() &&
-    // --bare / SIMPLE: skip claude.ai proxy servers (datadog, Gmail,
+    // --bare / SIMPLE: skip github.com/blasian01/Tiny-Crab proxy servers (datadog, Gmail,
     // Slack, BigQuery, PubMed — 6-14s each to connect). Scripted calls
     // that need MCP pass --mcp-config explicitly.
     !isBareMode() ? fetchClaudeAIMcpConfigsIfEligible().then(configs => {
@@ -1879,7 +1879,7 @@ async function run(): Promise<CommanderCommand> {
         blocked
       } = filterMcpServersByPolicy(configs);
       if (blocked.length > 0) {
-        process.stderr.write(`Warning: claude.ai MCP ${plural(blocked.length, 'server')} blocked by enterprise policy: ${blocked.join(', ')}\n`);
+        process.stderr.write(`Warning: github.com/blasian01/Tiny-Crab MCP ${plural(blocked.length, 'server')} blocked by enterprise policy: ${blocked.join(', ')}\n`);
       }
       return allowed;
     }) : Promise.resolve({});
@@ -2371,7 +2371,7 @@ async function run(): Promise<CommanderCommand> {
         void refreshPolicyLimits();
         // Clear user data cache BEFORE GrowthBook refresh so it picks up fresh credentials
         resetUserCache();
-        // Refresh GrowthBook after login to get updated feature flags (e.g., for claude.ai MCPs)
+        // Refresh GrowthBook after login to get updated feature flags (e.g., for github.com/blasian01/Tiny-Crab MCPs)
         refreshGrowthBookAfterAuthChange();
         // Clear any stale trusted device token then enroll for Remote Control.
         // Both self-gate on tengu_sessions_elevated_auth_enforcement internally
@@ -2812,14 +2812,14 @@ async function run(): Promise<CommanderCommand> {
       // message and turn-1 tool list both need configured MCP tools present.
       // Zero-server case is free via the early return in connectMcpBatch.
       // Connectors parallelize inside getMcpToolsCommandsAndResources
-      // (processBatched with Promise.all). claude.ai is awaited too — its
+      // (processBatched with Promise.all). github.com/blasian01/Tiny-Crab is awaited too — its
       // fetch was kicked off early (line ~2558) so only residual time blocks
-      // here. --bare skips claude.ai entirely for perf-sensitive scripts.
+      // here. --bare skips github.com/blasian01/Tiny-Crab entirely for perf-sensitive scripts.
       profileCheckpoint('before_connectMcp');
       await connectMcpBatch(regularMcpConfigs, 'regular');
       profileCheckpoint('after_connectMcp');
-      // Dedup: suppress plugin MCP servers that duplicate a claude.ai
-      // connector (connector wins), then connect claude.ai servers.
+      // Dedup: suppress plugin MCP servers that duplicate a github.com/blasian01/Tiny-Crab
+      // connector (connector wins), then connect github.com/blasian01/Tiny-Crab servers.
       // Bounded wait — #23725 made this blocking so single-turn -p sees
       // connectors, but with 40+ slow connectors tengu_startup_perf p99
       // climbed to 76s. If fetch+connect doesn't finish in time, proceed;
@@ -2840,7 +2840,7 @@ async function run(): Promise<CommanderCommand> {
             if (sig && claudeaiSigs.has(sig)) suppressed.add(name);
           }
           if (suppressed.size > 0) {
-            logForDebugging(`[MCP] Lazy dedup: suppressing ${suppressed.size} plugin server(s) that duplicate claude.ai connectors: ${[...suppressed].join(', ')}`);
+            logForDebugging(`[MCP] Lazy dedup: suppressing ${suppressed.size} plugin server(s) that duplicate github.com/blasian01/Tiny-Crab connectors: ${[...suppressed].join(', ')}`);
             // Disconnect before filtering from state. Only connected
             // servers need cleanup — clearServerCache on a never-connected
             // server triggers a real connect just to kill it (memoize
@@ -2876,11 +2876,11 @@ async function run(): Promise<CommanderCommand> {
             });
           }
         }
-        // Suppress claude.ai connectors that duplicate an enabled
+        // Suppress github.com/blasian01/Tiny-Crab connectors that duplicate an enabled
         // manual server (URL-signature match). Plugin dedup above only
         // handles `plugin:*` keys; this catches manual `.mcp.json` entries.
         // plugin:* must be excluded here — step 1 already suppressed
-        // those (claude.ai wins); leaving them in suppresses the
+        // those (github.com/blasian01/Tiny-Crab wins); leaving them in suppresses the
         // connector too, and neither survives (gh-39974).
         const nonPluginConfigs = pickBy(regularMcpConfigs, (_, n) => !n.startsWith('plugin:'));
         const {
@@ -2894,7 +2894,7 @@ async function run(): Promise<CommanderCommand> {
       })]);
       if (claudeaiTimer) clearTimeout(claudeaiTimer);
       if (claudeaiTimedOut) {
-        logForDebugging(`[MCP] claude.ai connectors not ready after ${CLAUDE_AI_MCP_TIMEOUT_MS}ms — proceeding; background connection continues`);
+        logForDebugging(`[MCP] github.com/blasian01/Tiny-Crab connectors not ready after ${CLAUDE_AI_MCP_TIMEOUT_MS}ms — proceeding; background connection continues`);
       }
       profileCheckpoint('after_connectMcp_claudeai');
 
@@ -3148,7 +3148,7 @@ async function run(): Promise<CommanderCommand> {
     // repo. Captures git/filesystem state (NOT transcripts) at each turn so
     // environments can be recreated at any user message index. Gating:
     //   - Build-time: this import is stubbed in external builds.
-    //   - Runtime: uploader checks github.com/anthropics/* remote + gcloud auth.
+    //   - Runtime: uploader checks github.com/blasian01/* remote + gcloud auth.
     //   - Safety: CLAUDE_CODE_DISABLE_SESSION_DATA_UPLOAD=1 bypasses (tests set this).
     // Import is dynamic + async to avoid adding startup latency.
     const sessionUploaderPromise = "external" === 'ant' ? import('./utils/sessionDataUploader.js') : null;
@@ -3488,7 +3488,7 @@ async function run(): Promise<CommanderCommand> {
         }
       }
 
-      // --remote and --teleport both create/resume Claude Code Web (CCR) sessions.
+      // --remote and --teleport both create/resume Tiny Crab Web (CCR) sessions.
       // Remote Control (--rc) is a separate feature gated in initReplBridge.ts.
       if (remote !== null || teleport) {
         await waitForPolicyLimitsToLoad();
@@ -3895,7 +3895,7 @@ async function run(): Promise<CommanderCommand> {
         pendingHookMessages
       }, renderAndRun);
     }
-  }).version(`${MACRO.VERSION} (${localModelMode ? 'Tiny Crab' : 'Claude Code'})`, '-v, --version', 'Output the version number');
+  }).version(`${MACRO.VERSION} (${localModelMode ? 'Tiny Crab' : 'Tiny Crab'})`, '-v, --version', 'Output the version number');
 
   // Worktree flags
   program.option('-w, --worktree [name]', 'Create a new git worktree for this session (optionally specify a name)');
@@ -3982,7 +3982,7 @@ async function run(): Promise<CommanderCommand> {
   // claude mcp
 
   const mcp = program.command('mcp').description('Configure and manage MCP servers').configureHelp(createSortedHelpConfig()).enablePositionalOptions();
-  mcp.command('serve').description(`Start the Claude Code MCP server`).option('-d, --debug', 'Enable debug mode', () => true).option('--verbose', 'Override verbose mode setting from config', () => true).action(async ({
+  mcp.command('serve').description(`Start the Tiny Crab MCP server`).option('-d, --debug', 'Enable debug mode', () => true).option('--verbose', 'Override verbose mode setting from config', () => true).action(async ({
     debug,
     verbose
   }: {
@@ -4049,7 +4049,7 @@ async function run(): Promise<CommanderCommand> {
 
   // claude server
   if (feature('DIRECT_CONNECT')) {
-    program.command('server').description('Start a Claude Code session server').option('--port <number>', 'HTTP port', '0').option('--host <string>', 'Bind address', '0.0.0.0').option('--auth-token <token>', 'Bearer token for auth').option('--unix <path>', 'Listen on a unix domain socket').option('--workspace <dir>', 'Default working directory for sessions that do not specify cwd').option('--idle-timeout <ms>', 'Idle timeout for detached sessions in ms (0 = never expire)', '600000').option('--max-sessions <n>', 'Maximum concurrent sessions (0 = unlimited)', '32').action(async (opts: {
+    program.command('server').description('Start a Tiny Crab session server').option('--port <number>', 'HTTP port', '0').option('--host <string>', 'Bind address', '0.0.0.0').option('--auth-token <token>', 'Bearer token for auth').option('--unix <path>', 'Listen on a unix domain socket').option('--workspace <dir>', 'Default working directory for sessions that do not specify cwd').option('--idle-timeout <ms>', 'Idle timeout for detached sessions in ms (0 = never expire)', '600000').option('--max-sessions <n>', 'Maximum concurrent sessions (0 = unlimited)', '32').action(async (opts: {
       port: string;
       host: string;
       authToken?: string;
@@ -4133,11 +4133,11 @@ async function run(): Promise<CommanderCommand> {
   // this action it means the argv rewrite didn't fire (e.g. user ran
   // `claude ssh` with no host) — just print usage.
   if (!localModelMode && feature('SSH_REMOTE')) {
-    program.command('ssh <host> [dir]').description('Run Claude Code on a remote host over SSH. Deploys the binary and ' + 'tunnels API auth back through your local machine — no remote setup needed.').option('--permission-mode <mode>', 'Permission mode for the remote session').option('--dangerously-skip-permissions', 'Skip all permission prompts on the remote (dangerous)').option('--local', 'e2e test mode — spawn the child CLI locally (skip ssh/deploy). ' + 'Exercises the auth proxy and unix-socket plumbing without a remote host.').action(async () => {
+    program.command('ssh <host> [dir]').description('Run Tiny Crab on a remote host over SSH. Deploys the binary and ' + 'tunnels API auth back through your local machine — no remote setup needed.').option('--permission-mode <mode>', 'Permission mode for the remote session').option('--dangerously-skip-permissions', 'Skip all permission prompts on the remote (dangerous)').option('--local', 'e2e test mode — spawn the child CLI locally (skip ssh/deploy). ' + 'Exercises the auth proxy and unix-socket plumbing without a remote host.').action(async () => {
       // Argv rewriting in main() should have consumed `ssh <host>` before
       // commander runs. Reaching here means host was missing or the
       // rewrite predicate didn't match.
-      process.stderr.write(`Usage: ${cliName} ssh <user@host | ssh-config-alias> [dir]\n\n` + "Runs Claude Code on a remote Linux host. You don't need to install\n" + `anything on the remote or run \`${cliName} auth login\` there — the binary is\n` + 'deployed over SSH and API auth tunnels back through your local machine.\n');
+      process.stderr.write(`Usage: ${cliName} ssh <user@host | ssh-config-alias> [dir]\n\n` + "Runs Tiny Crab on a remote Linux host. You don't need to install\n" + `anything on the remote or run \`${cliName} auth login\` there — the binary is\n` + 'deployed over SSH and API auth tunnels back through your local machine.\n');
       process.exit(1);
     });
   }
@@ -4146,7 +4146,7 @@ async function run(): Promise<CommanderCommand> {
   // Interactive mode (without -p) is handled by early argv rewriting in main()
   // which redirects to the main command with full TUI support.
   if (!localModelMode && feature('DIRECT_CONNECT')) {
-    program.command('open <cc-url>').description('Connect to a Claude Code server (internal — use cc:// URLs)').option('-p, --print [prompt]', 'Print mode (headless)').option('--output-format <format>', 'Output format: text, json, stream-json', 'text').action(async (ccUrl: string, opts: {
+    program.command('open <cc-url>').description('Connect to a Tiny Crab server (internal — use cc:// URLs)').option('-p, --print [prompt]', 'Print mode (headless)').option('--output-format <format>', 'Output format: text, json, stream-json', 'text').action(async (ccUrl: string, opts: {
       print?: string | boolean;
       outputFormat: string;
     }) => {
@@ -4237,7 +4237,7 @@ async function run(): Promise<CommanderCommand> {
     const coworkOption = () => new Option('--cowork', 'Use cowork_plugins directory').hideHelp();
 
     // Plugin validate command
-    const pluginCmd = program.command('plugin').alias('plugins').description('Manage Claude Code plugins').configureHelp(createSortedHelpConfig());
+    const pluginCmd = program.command('plugin').alias('plugins').description('Manage Tiny Crab plugins').configureHelp(createSortedHelpConfig());
     pluginCmd.command('validate <path>').description('Validate a plugin or marketplace manifest').addOption(coworkOption()).action(async (manifestPath: string, options: {
       cowork?: boolean;
     }) => {
@@ -4260,7 +4260,7 @@ async function run(): Promise<CommanderCommand> {
     });
 
     // Marketplace subcommands
-    const marketplaceCmd = pluginCmd.command('marketplace').description('Manage Claude Code marketplaces').configureHelp(createSortedHelpConfig());
+    const marketplaceCmd = pluginCmd.command('marketplace').description('Manage Tiny Crab marketplaces').configureHelp(createSortedHelpConfig());
     marketplaceCmd.command('add <source>').description('Add a marketplace from a URL, path, or GitHub repo').addOption(coworkOption()).option('--sparse <paths...>', 'Limit checkout to specific directories via git sparse-checkout (for monorepos). Example: --sparse .claude-plugin plugins').option('--scope <scope>', 'Where to declare the marketplace: user (default), project, or local').action(async (source: string, options: {
       cowork?: boolean;
       sparse?: string[];
@@ -4406,7 +4406,7 @@ async function run(): Promise<CommanderCommand> {
     }
   }
 
-  // Remote Control command — connect local environment to claude.ai/code.
+  // Remote Control command — connect local environment to github.com/blasian01/Tiny-Crab/code.
   // The actual command is intercepted by the fast-path in cli.tsx before
   // Commander.js runs, so this registration exists only for help output.
   // Always hidden: isBridgeEnabled() at this point (before enableConfigs)
@@ -4417,7 +4417,7 @@ async function run(): Promise<CommanderCommand> {
   if (feature('BRIDGE_MODE')) {
     program.command('remote-control', {
       hidden: true
-    }).alias('rc').description('Connect your local environment for remote-control sessions via claude.ai/code').action(async () => {
+    }).alias('rc').description('Connect your local environment for remote-control sessions via github.com/blasian01/Tiny-Crab/code').action(async () => {
       // Unreachable — cli.tsx fast-path handles this command before main.tsx loads.
       // If somehow reached, delegate to bridgeMain.
       const {
@@ -4439,7 +4439,7 @@ async function run(): Promise<CommanderCommand> {
 
   // Doctor command - check installation health
   if (!localModelMode) {
-    program.command('doctor').description('Check the health of your Claude Code auto-updater. Note: The workspace trust dialog is skipped and stdio servers from .mcp.json are spawned for health checks. Only use this command in directories you trust.').action(async () => {
+    program.command('doctor').description('Check the health of your Tiny Crab auto-updater. Note: The workspace trust dialog is skipped and stdio servers from .mcp.json are spawned for health checks. Only use this command in directories you trust.').action(async () => {
       const [{
         doctorHandler
       }, {
@@ -4492,7 +4492,7 @@ async function run(): Promise<CommanderCommand> {
 
   // claude install
   if (!localModelMode) {
-    program.command('install [target]').description('Install Claude Code native build. Use [target] to specify version (stable, latest, or specific version)').option('--force', 'Force installation even if already installed').action(async (target: string | undefined, options: {
+    program.command('install [target]').description('Install Tiny Crab native build. Use [target] to specify version (stable, latest, or specific version)').option('--force', 'Force installation even if already installed').action(async (target: string | undefined, options: {
       force?: boolean;
     }) => {
       const {

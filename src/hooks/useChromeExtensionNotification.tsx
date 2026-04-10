@@ -27,7 +27,7 @@ async function _temp() {
   if (true && !isClaudeAISubscriber()) {
     return {
       key: "chrome-requires-subscription",
-      jsx: <Text color="error">Claude in Chrome requires a claude.ai subscription</Text>,
+      jsx: <Text color="error">Claude in Chrome requires a github.com/blasian01/Tiny-Crab subscription</Text>,
       priority: "immediate",
       timeoutMs: 5000
     };
@@ -36,7 +36,7 @@ async function _temp() {
   if (!installed && !isRunningOnHomespace()) {
     return {
       key: "chrome-extension-not-detected",
-      jsx: <Text color="warning">Chrome extension not detected · https://claude.ai/chrome to install</Text>,
+      jsx: <Text color="warning">Chrome extension not detected · https://github.com/blasian01/Tiny-Crab/chrome to install</Text>,
       priority: "immediate",
       timeoutMs: 3000
     };

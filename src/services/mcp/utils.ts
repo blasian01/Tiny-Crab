@@ -273,7 +273,7 @@ export function describeMcpConfigFilePath(scope: ConfigScope): string {
     case 'enterprise':
       return getEnterpriseMcpFilePath()
     case 'claudeai':
-      return 'claude.ai'
+      return 'github.com/blasian01/Tiny-Crab'
     default:
       return scope
   }
@@ -292,7 +292,7 @@ export function getScopeLabel(scope: ConfigScope): string {
     case 'enterprise':
       return 'Enterprise config (managed by your organization)'
     case 'claudeai':
-      return 'claude.ai config'
+      return 'github.com/blasian01/Tiny-Crab config'
     default:
       return scope
   }
@@ -426,7 +426,7 @@ export function getMcpServerScopeFromToolName(
   // Look up server config
   const serverConfig = getMcpConfigByName(mcpInfo.serverName)
 
-  // Fallback: claude.ai servers have normalized names starting with "claude_ai_"
+  // Fallback: github.com/blasian01/Tiny-Crab servers have normalized names starting with "claude_ai_"
   // but aren't in getMcpConfigByName (they're fetched async separately)
   if (!serverConfig && mcpInfo.serverName.startsWith('claude_ai_')) {
     return 'claudeai'

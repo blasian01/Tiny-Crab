@@ -202,7 +202,7 @@ export function getAuthTokenSource() {
 
   const oauthTokens = getClaudeAIOAuthTokens()
   if (shouldUseClaudeAIAuth(oauthTokens?.scopes) && oauthTokens?.accessToken) {
-    return { source: 'claude.ai' as const, hasToken: true }
+    return { source: 'github.com/blasian01/Tiny-Crab' as const, hasToken: true }
   }
 
   return { source: 'none' as const, hasToken: false }
@@ -1338,7 +1338,7 @@ async function invalidateOAuthCacheIfDiskChanged(): Promise<void> {
   }
 }
 
-// In-flight dedup: when N claude.ai proxy connectors hit 401 with the same
+// In-flight dedup: when N github.com/blasian01/Tiny-Crab proxy connectors hit 401 with the same
 // token simultaneously (common at startup — #20930), only one should clear
 // caches and re-read the keychain. Without this, each call's clearOAuthTokenCache()
 // nukes readInFlight in macOsKeychainStorage and triggers a fresh spawn —
@@ -1892,7 +1892,7 @@ export function getAccountInformation() {
 
   // We don't know the organization if we're relying on an external API key or auth token
   if (
-    authTokenSource === 'claude.ai' ||
+    authTokenSource === 'github.com/blasian01/Tiny-Crab' ||
     apiKeySource === '/login managed key'
   ) {
     // Get organization name from OAuth account info
@@ -1903,7 +1903,7 @@ export function getAccountInformation() {
   }
   const email = getOauthAccountInfo()?.emailAddress
   if (
-    (authTokenSource === 'claude.ai' ||
+    (authTokenSource === 'github.com/blasian01/Tiny-Crab' ||
       apiKeySource === '/login managed key') &&
     email
   ) {

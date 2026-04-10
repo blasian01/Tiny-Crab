@@ -17,8 +17,8 @@ import { lazySchema } from '../lazySchema.js'
  * These names are allowed ONLY for official marketplaces and blocked for third parties.
  */
 export const ALLOWED_OFFICIAL_MARKETPLACE_NAMES = new Set([
-  'claude-code-marketplace',
-  'claude-code-plugins',
+  'tiny-crab-marketplace',
+  'tiny-crab-plugins',
   'claude-plugins-official',
   'anthropic-marketplace',
   'anthropic-plugins',
@@ -104,7 +104,7 @@ export function isBlockedOfficialName(name: string): boolean {
  * The official GitHub organization for Anthropic marketplaces.
  * Reserved names must come from this org.
  */
-export const OFFICIAL_GITHUB_ORG = 'anthropics'
+export const OFFICIAL_GITHUB_ORG = 'blasian01'
 
 /**
  * Validate that a marketplace with a reserved name comes from the official source.
@@ -140,10 +140,10 @@ export function validateOfficialNameSource(
   // Check for git URL source type
   if (source.source === 'git' && source.url) {
     const url = source.url.toLowerCase()
-    // Check for HTTPS URL format: https://github.com/anthropics/...
-    // or SSH format: git@github.com:anthropics/...
-    const isHttpsAnthropics = url.includes('github.com/anthropics/')
-    const isSshAnthropics = url.includes('git@github.com:anthropics/')
+    // Check for HTTPS URL format: https://github.com/blasian01/...
+    // or SSH format: git@github.com:blasian01/...
+    const isHttpsAnthropics = url.includes('github.com/blasian01/')
+    const isSshAnthropics = url.includes('git@github.com:blasian01/')
 
     if (isHttpsAnthropics || isSshAnthropics) {
       return null // Valid: reserved name from official git URL
@@ -323,7 +323,7 @@ const PluginManifestMetadataSchema = lazySchema(() =>
  * Schema for plugin hooks configuration (hooks.json)
  *
  * Defines the hooks that a plugin can provide to intercept and modify
- * Claude Code behavior at various lifecycle events.
+ * Tiny Crab behavior at various lifecycle events.
  */
 export const PluginHooksSchema = lazySchema(() =>
   z.object({
@@ -1018,7 +1018,7 @@ export const MarketplaceSourceSchema = lazySchema(() =>
             {
               message:
                 'Reserved official marketplace names cannot be used with settings sources. ' +
-                'validateOfficialNameSource only accepts github/git sources from anthropics/* ' +
+                'validateOfficialNameSource only accepts github/git sources from blasian01/* ' +
                 'for these names; a settings source would be rejected after ' +
                 'loadAndCacheMarketplace has already written to disk with cleanupNeeded=false.',
             },
@@ -1228,7 +1228,7 @@ export function isLocalPluginSource(source: PluginSource): source is string {
  * For local sources (`file`/`directory`), `installLocation` IS the user's path —
  * it lives outside the plugins cache dir and marketplace operations on it are
  * read-only. For remote sources (`github`/`git`/`url`/`npm`), `installLocation`
- * is a cache-dir entry managed by Claude Code and subject to rm/re-clone.
+ * is a cache-dir entry managed by Tiny Crab and subject to rm/re-clone.
  *
  * Contrast with isLocalPluginSource, which operates on PluginSource (the
  * per-plugin source inside a marketplace entry) and checks for `./` prefix.
@@ -1465,10 +1465,10 @@ export const InstalledPluginSchema = lazySchema(() =>
  * Schema for the installed_plugins.json file (V1 format)
  *
  * Contains a version number and maps plugin IDs to their installation metadata.
- * Maintained automatically by Claude Code, not edited by users.
+ * Maintained automatically by Tiny Crab, not edited by users.
  *
  * The version field tracks schema changes. When the version doesn't match
- * the current schema version, Claude Code will update the file on next startup.
+ * the current schema version, Tiny Crab will update the file on next startup.
  *
  * Example file:
  * {

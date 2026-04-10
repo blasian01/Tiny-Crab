@@ -140,7 +140,7 @@ async function _bundleWithFallback(
   return {
     ok: false,
     error:
-      'Repo is too large to bundle. Please setup GitHub on https://claude.ai/code',
+      'Repo is too large to bundle. Please setup GitHub on https://github.com/blasian01/Tiny-Crab/code',
     failReason: 'too_large',
   }
 }

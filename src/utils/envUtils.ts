@@ -37,7 +37,8 @@ export function isEnvTruthy(envVar: string | boolean | undefined): boolean {
 }
 
 export function isLocalModelMode(): boolean {
-  return isEnvTruthy(process.env.CLAUDE_CODE_LOCAL_MODEL_MODE)
+  // Tiny Crab is always in local model mode — no cloud API support
+  return true
 }
 
 export function isLoopbackHost(hostname: string): boolean {
@@ -152,7 +153,7 @@ export function isRunningOnHomespace(): boolean {
 }
 
 /**
- * Conservative check for whether Claude Code is running inside a protected
+ * Conservative check for whether Tiny Crab is running inside a protected
  * (privileged or ASL3+) COO namespace or cluster.
  *
  * Conservative means: when signals are ambiguous, assume protected. We would
