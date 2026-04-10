@@ -36,7 +36,10 @@ function parseKey(keypress: ParsedKey): [Key, string] {
     wheelDown: keypress.name === 'wheeldown',
     home: keypress.name === 'home',
     end: keypress.name === 'end',
-    return: keypress.name === 'return',
+    // Some terminals report Enter as linefeed (`enter`) instead of
+    // carriage return (`return`). Normalize both so prompt submission
+    // works regardless of the terminal's newline encoding.
+    return: keypress.name === 'return' || keypress.name === 'enter',
     escape: keypress.name === 'escape',
     fn: keypress.fn,
     ctrl: keypress.ctrl,
@@ -203,4 +206,3 @@ export class InputEvent extends Event {
     this.input = input
   }
 }
-

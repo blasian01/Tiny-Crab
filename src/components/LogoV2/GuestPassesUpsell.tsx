@@ -5,6 +5,7 @@ import { Text } from '../../ink.js';
 import { logEvent } from '../../services/analytics/index.js';
 import { checkCachedPassesEligibility, formatCreditAmount, getCachedReferrerReward, getCachedRemainingPasses } from '../../services/api/referral.js';
 import { getGlobalConfig, saveGlobalConfig } from '../../utils/config.js';
+import { isLocalModelMode } from '../../utils/envUtils.js';
 function resetIfPassesRefreshed(): void {
   const remaining = getCachedRemainingPasses();
   if (remaining == null || remaining <= 0) return;
@@ -20,6 +21,7 @@ function resetIfPassesRefreshed(): void {
   }
 }
 function shouldShowGuestPassesUpsell(): boolean {
+  if (isLocalModelMode()) return false;
   const {
     eligible,
     hasCache

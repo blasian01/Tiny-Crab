@@ -5,6 +5,7 @@ import { Text } from '../../ink.js';
 import { logEvent } from '../../services/analytics/index.js';
 import { formatGrantAmount, getCachedOverageCreditGrant, refreshOverageCreditGrantCache } from '../../services/api/overageCreditGrant.js';
 import { getGlobalConfig, saveGlobalConfig } from '../../utils/config.js';
+import { isLocalModelMode } from '../../utils/envUtils.js';
 import { truncate } from '../../utils/format.js';
 import type { FeedConfig } from './Feed.js';
 const MAX_IMPRESSIONS = 3;
@@ -30,6 +31,7 @@ export function isEligibleForOverageCreditGrant(): boolean {
   return formatGrantAmount(info) !== null;
 }
 export function shouldShowOverageCreditUpsell(): boolean {
+  if (isLocalModelMode()) return false;
   if (!isEligibleForOverageCreditGrant()) return false;
   const config = getGlobalConfig();
   if (config.hasVisitedExtraUsage) return false;
@@ -42,6 +44,7 @@ export function shouldShowOverageCreditUpsell(): boolean {
  * unconditionally on mount — it no-ops if cache is fresh.
  */
 export function maybeRefreshOverageCreditCache(): void {
+  if (isLocalModelMode()) return;
   if (getCachedOverageCreditGrant() !== null) return;
   void refreshOverageCreditGrantCache();
 }

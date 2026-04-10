@@ -14,6 +14,7 @@ import { useNotifications } from '../context/notifications.js';
 import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, type AnalyticsMetadata_I_VERIFIED_THIS_IS_PII_TAGGED, logEvent } from '../services/analytics/index.js';
 import { clearPendingHint, getPendingHintSnapshot, markShownThisSession, subscribeToPendingHint } from '../utils/claudeCodeHints.js';
 import { logForDebugging } from '../utils/debug.js';
+import { isLocalModelMode } from '../utils/envUtils.js';
 import { disableHintRecommendations, markHintPluginShown, type PluginHintRecommendation, resolvePluginHint } from '../utils/plugins/hintRecommendation.js';
 import { installPluginFromMarketplace } from '../utils/plugins/pluginInstallationHelpers.js';
 import { installPluginAndNotify, usePluginRecommendationBase } from './usePluginRecommendationBase.js';
@@ -22,6 +23,12 @@ type UseClaudeCodeHintRecommendationResult = {
   handleResponse: (response: 'yes' | 'no' | 'disable') => void;
 };
 export function useClaudeCodeHintRecommendation() {
+  if (isLocalModelMode()) {
+    return {
+      recommendation: null,
+      handleResponse: () => {},
+    };
+  }
   const $ = _c(11);
   const pendingHint = React.useSyncExternalStore(subscribeToPendingHint, getPendingHintSnapshot);
   const {

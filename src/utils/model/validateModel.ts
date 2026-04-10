@@ -3,6 +3,11 @@ import { MODEL_ALIASES } from './aliases.js'
 import { isModelAllowed } from './modelAllowlist.js'
 import { getAPIProvider } from './providers.js'
 import { sideQuery } from '../sideQuery.js'
+import { isLocalModelMode } from '../envUtils.js'
+import {
+  getLocalModelProviderLabel,
+  isCloudBackedLocalModel,
+} from '../localModelProvider.js'
 import {
   NotFoundError,
   APIError,
@@ -28,7 +33,15 @@ export async function validateModel(
   }
 
   // Check against availableModels allowlist before any API call
-  if (!isModelAllowed(normalizedModel)) {
+  if (isLocalModelMode() && isCloudBackedLocalModel(normalizedModel)) {
+    return {
+      valid: false,
+      error:
+        'Cloud-backed Ollama models are disabled in Tiny Crab local-only mode.',
+    }
+  }
+
+  if (!isLocalModelMode() && !isModelAllowed(normalizedModel)) {
     return {
       valid: false,
       error: `Model '${normalizedModel}' is not in the list of available models`,
@@ -107,7 +120,9 @@ function handleValidationError(
     if (error instanceof APIConnectionError) {
       return {
         valid: false,
-        error: 'Network error. Please check your internet connection.',
+        error: isLocalModelMode()
+          ? `Unable to reach your local ${getLocalModelProviderLabel()} server. Check that it is running and listening on a loopback address.`
+          : 'Network error. Please check your internet connection.',
       }
     }
 
@@ -157,4 +172,3 @@ function get3PFallbackSuggestion(model: string): string | undefined {
   }
   return undefined
 }
-

@@ -998,7 +998,14 @@ function PromptInput({
     // BaseTextInput's useInput registers before that hook (child effects fire first),
     // so without this guard Enter would double-fire and auto-submit the suggestion.
     if (state.viewSelectionMode === 'selecting-agent') {
-      return;
+      if (getRunningTeammatesSorted(state.tasks).length > 0) {
+        return;
+      }
+      setAppState(prev => prev.viewSelectionMode !== 'selecting-agent' ? prev : {
+        ...prev,
+        viewSelectionMode: 'none',
+        selectedIPAgentIndex: -1
+      });
     }
 
     // Check for images early - we need this for suggestion logic below

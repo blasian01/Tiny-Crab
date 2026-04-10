@@ -28,6 +28,29 @@ type MaybeCursor = void | Cursor
 type InputHandler = (input: string) => MaybeCursor
 type InputMapper = (input: string) => MaybeCursor
 const NOOP_HANDLER: InputHandler = () => {}
+
+function getCoalescedSubmitText(input: string): string | null {
+  const lineEnding = input.endsWith('\r\n')
+    ? '\r\n'
+    : input.endsWith('\r')
+      ? '\r'
+      : input.endsWith('\n')
+        ? '\n'
+        : null
+
+  if (!lineEnding || input.length <= lineEnding.length) {
+    return null
+  }
+
+  const text = input.slice(0, -lineEnding.length)
+
+  if (/[\r\n]/.test(text) || text.endsWith('\\')) {
+    return null
+  }
+
+  return text
+}
+
 function mapInput(input_map: Array<[string, InputHandler]>): InputMapper {
   const map = new Map(input_map)
   return function (input: string): MaybeCursor {
@@ -474,7 +497,9 @@ export function useTextInput({
       resetYankState()
     }
 
-    const nextCursor = mapKey(key)(filteredInput)
+    const coalescedSubmitText = getCoalescedSubmitText(filteredInput)
+    const effectiveInput = coalescedSubmitText ?? filteredInput
+    const nextCursor = mapKey(key)(effectiveInput)
     if (nextCursor) {
       if (!cursor.equals(nextCursor)) {
         if (cursor.text !== nextCursor.text) {
@@ -482,18 +507,11 @@ export function useTextInput({
         }
         setOffset(nextCursor.offset)
       }
-      // SSH-coalesced Enter: on slow links, "o" + Enter can arrive as one
-      // chunk "o\r". parseKeypress only matches s === '\r', so it hit the
-      // default handler above (which stripped the trailing \r). Text with
-      // exactly one trailing \r is coalesced Enter; lone \r is Alt+Enter
-      // (newline); embedded \r is multi-line paste.
+      // Coalesced Enter: on slower links or with some terminals, text and
+      // Enter can arrive in one chunk ("o\r", "o\n", or "o\r\n"). Treat a
+      // single trailing newline sequence as submit, not literal input.
       if (
-        filteredInput.length > 1 &&
-        filteredInput.endsWith('\r') &&
-        !filteredInput.slice(0, -1).includes('\r') &&
-        // Backslash+CR is a stale VS Code Shift+Enter binding, not
-        // coalesced Enter. See default handler above.
-        filteredInput[filteredInput.length - 2] !== '\\'
+        coalescedSubmitText !== null
       ) {
         onSubmit?.(nextCursor.text)
       }
@@ -527,4 +545,3 @@ export function useTextInput({
     viewportCharEnd: cursor.getViewportCharEnd(maxVisibleLines),
   }
 }
-

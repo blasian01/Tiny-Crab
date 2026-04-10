@@ -6,10 +6,11 @@ import type { MCPServerConnection } from '../services/mcp/types.js';
 import { getAccountInformation, isClaudeAISubscriber } from './auth.js';
 import { getLargeMemoryFiles, getMemoryFiles, MAX_MEMORY_CHARACTER_COUNT } from './claudemd.js';
 import { getDoctorDiagnostic } from './doctorDiagnostic.js';
-import { getAWSRegion, getDefaultVertexRegion, isEnvTruthy } from './envUtils.js';
+import { getAWSRegion, getDefaultVertexRegion, isEnvTruthy, isLocalModelMode } from './envUtils.js';
 import { getDisplayPath } from './file.js';
 import { formatNumber } from './format.js';
 import { getIdeClientName, type IDEExtensionInstallationStatus, isJetBrainsIde, toIDEDisplayName } from './ide.js';
+import { getLocalModelProviderLabel } from './localModelProvider.js';
 import { getClaudeAiUserDefaultModelDescription, modelDisplayString } from './model/model.js';
 import { getAPIProvider } from './model/providers.js';
 import { getMTLSConfig } from './mtls.js';
@@ -198,6 +199,10 @@ export async function buildInstallationHealthDiagnostics(): Promise<Diagnostic[]
   return items;
 }
 export function buildAccountProperties(): Property[] {
+  if (isLocalModelMode()) {
+    return [];
+  }
+
   const accountInfo = getAccountInformation();
   if (!accountInfo) {
     return [];
@@ -238,6 +243,23 @@ export function buildAccountProperties(): Property[] {
   return properties;
 }
 export function buildAPIProviderProperties(): Property[] {
+  if (isLocalModelMode()) {
+    const properties: Property[] = [
+      {
+        label: 'Local provider',
+        value: getLocalModelProviderLabel(),
+      },
+    ]
+    const baseUrl = process.env.ANTHROPIC_BASE_URL
+    if (baseUrl) {
+      properties.push({
+        label: 'Local API base URL',
+        value: baseUrl,
+      })
+    }
+    return properties
+  }
+
   const apiProvider = getAPIProvider();
   const properties: Property[] = [];
   if (apiProvider !== 'firstParty') {

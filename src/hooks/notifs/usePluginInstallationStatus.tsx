@@ -6,8 +6,12 @@ import { useNotifications } from '../../context/notifications.js';
 import { Text } from '../../ink.js';
 import { useAppState } from '../../state/AppState.js';
 import { logForDebugging } from '../../utils/debug.js';
+import { isLocalModelMode } from '../../utils/envUtils.js';
 import { plural } from '../../utils/stringUtils.js';
 export function usePluginInstallationStatus() {
+  if (isLocalModelMode()) {
+    return;
+  }
   const $ = _c(20);
   const {
     addNotification

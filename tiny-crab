@@ -12,7 +12,6 @@ while [ -L "$SCRIPT_PATH" ]; do
 done
 REPO_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 
-# Some environments launch with a reduced PATH that omits Homebrew bins.
 for bin_dir in /opt/homebrew/bin /usr/local/bin; do
   case ":$PATH:" in
     *":$bin_dir:"*) ;;
@@ -21,7 +20,6 @@ for bin_dir in /opt/homebrew/bin /usr/local/bin; do
 done
 export PATH
 
-# Keep this local build fully separate from the official install.
 export CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.tiny-crab}"
 
 normalize_url() {
@@ -37,14 +35,6 @@ cleanup_tui() {
   tput cnorm >/dev/stderr 2>/dev/null || true
 }
 
-has_ollama() {
-  command -v ollama >/dev/null 2>&1
-}
-
-get_ollama_models() {
-  ollama list 2>/dev/null | awk 'NR > 1 && NF > 0 { print $1 }'
-}
-
 set_env_if_needed() {
   local name="$1"
   local value="$2"
@@ -54,34 +44,104 @@ set_env_if_needed() {
   fi
 }
 
-set_ollama_model_env() {
-  local model="$1"
-  local force="${2:-0}"
-  set_env_if_needed ANTHROPIC_BASE_URL "$OLLAMA_BASE_URL" "$force"
-  set_env_if_needed ANTHROPIC_API_KEY "${CLAUDE_DEV_OLLAMA_API_KEY:-ollama}" "$force"
-  set_env_if_needed ANTHROPIC_AUTH_TOKEN "${CLAUDE_DEV_OLLAMA_AUTH_TOKEN:-ollama}" "$force"
-  set_env_if_needed ANTHROPIC_MODEL "$model" "$force"
-  set_env_if_needed ANTHROPIC_SMALL_FAST_MODEL "$model" "$force"
-  set_env_if_needed ANTHROPIC_DEFAULT_SONNET_MODEL "$model" "$force"
-  set_env_if_needed ANTHROPIC_DEFAULT_HAIKU_MODEL "$model" "$force"
-  set_env_if_needed ANTHROPIC_DEFAULT_OPUS_MODEL "$model" "$force"
-  set_env_if_needed ANTHROPIC_CUSTOM_MODEL_OPTION "$model" "$force"
-  set_env_if_needed ANTHROPIC_CUSTOM_MODEL_OPTION_NAME "$model" "$force"
-  set_env_if_needed ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION "Local Ollama model" "$force"
+json_node() {
+  local script="$1"
+  shift || true
+  node -e "$script" "$@"
+}
+
+build_local_auth_headers() {
+  local token="${LOCAL_PROVIDER_AUTH_TOKEN:-}"
+  if [[ -n "$token" ]]; then
+    printf '%s\n' "-H" "Authorization: Bearer $token"
+  fi
+}
+
+curl_json() {
+  local method="$1"
+  local url="$2"
+  local body="${3:-}"
+  local -a args=(curl -sS --max-time 30 "$url")
+  local header
+
+  while IFS= read -r header; do
+    args+=("$header")
+  done < <(build_local_auth_headers)
+
+  if [[ "$method" == "POST" ]]; then
+    args+=(-H 'Content-Type: application/json' -X POST -d "$body")
+  fi
+
+  "${args[@]}"
+}
+
+has_ollama() {
+  command -v ollama >/dev/null 2>&1
+}
+
+has_ollama_server() {
+  curl -fsS --max-time 5 "${OLLAMA_BASE_URL%/}/api/tags" >/dev/null 2>&1
+}
+
+has_lmstudio_server() {
+  curl_json GET "${LMSTUDIO_BASE_URL%/}/api/v1/models" >/dev/null 2>&1
+}
+
+get_ollama_models() {
+  if has_ollama; then
+    ollama list 2>/dev/null | awk 'NR > 1 && NF > 0 { print $1 }' | awk '!/:cloud$/'
+    return 0
+  fi
+
+  curl -fsS --max-time 10 "${OLLAMA_BASE_URL%/}/api/tags" \
+    | json_node 'const fs=require("fs"); const raw=fs.readFileSync(0,"utf8"); const payload=raw ? JSON.parse(raw) : {}; for (const model of payload.models || []) { const name=typeof model?.name === "string" ? model.name : (typeof model?.model === "string" ? model.model : ""); if (name && !name.endsWith(":cloud")) console.log(name); }'
+}
+
+get_lmstudio_models() {
+  curl_json GET "${LMSTUDIO_BASE_URL%/}/api/v1/models" \
+    | json_node 'const fs=require("fs"); const raw=fs.readFileSync(0,"utf8"); const payload=raw ? JSON.parse(raw) : {}; for (const model of payload.models || []) { if (model?.type !== "llm") continue; const key=typeof model?.key === "string" ? model.key : ""; if (!key) continue; const display=typeof model?.display_name === "string" && model.display_name ? model.display_name : key; const maxCtx=Number.isFinite(model?.max_context_length) ? model.max_context_length : ""; const loaded=Array.isArray(model?.loaded_instances) && model.loaded_instances[0] && typeof model.loaded_instances[0].id === "string" ? model.loaded_instances[0].id : ""; console.log([key, display, maxCtx, loaded].join("\t")); }'
 }
 
 get_ollama_model_context_length() {
   local model="$1"
   local context_length
-  context_length="$(
-    ollama show "$model" 2>/dev/null \
-      | awk 'tolower($0) ~ /context length/ { print $0; exit }' \
-      | tr -cd '0-9'
-  )"
-  if [[ -z "$context_length" || "$context_length" -le 0 ]]; then
+
+  if has_ollama; then
+    context_length="$(
+      ollama show "$model" 2>/dev/null \
+        | awk 'tolower($0) ~ /context length/ { print $0; exit }' \
+        | tr -cd '0-9'
+    )"
+  else
+    context_length="$(
+      curl -fsS --max-time 10 "${OLLAMA_BASE_URL%/}/api/show" \
+        -H 'Content-Type: application/json' \
+        -X POST \
+        -d "$(printf '{"model":"%s"}' "$model")" 2>/dev/null \
+        | json_node 'const fs=require("fs"); const raw=fs.readFileSync(0,"utf8"); const payload=raw ? JSON.parse(raw) : {}; const candidates=[payload?.details?.context_length,payload?.model_info?.context_length,payload?.parameters?.num_ctx,payload?.parameters?.context_length]; for (const value of candidates) { const n=Number(value); if (Number.isFinite(n) && n > 0) { console.log(n); process.exit(0); } } process.exit(1);' \
+        || true
+    )"
+  fi
+
+  if [[ -z "$context_length" || ! "$context_length" =~ ^[0-9]+$ || "$context_length" -le 0 ]]; then
     return 1
   fi
   printf '%s' "$context_length"
+}
+
+get_lmstudio_model_context_length() {
+  local model="$1"
+  local instance_id="${2:-}"
+
+  curl_json GET "${LMSTUDIO_BASE_URL%/}/api/v1/models" \
+    | json_node 'const fs=require("fs"); const targetModel=process.argv[1] || ""; const targetInstance=process.argv[2] || ""; const raw=fs.readFileSync(0,"utf8"); const payload=raw ? JSON.parse(raw) : {}; for (const model of payload.models || []) { if (model?.type !== "llm") continue; const key=typeof model?.key === "string" ? model.key : ""; const loaded=Array.isArray(model?.loaded_instances) ? model.loaded_instances : []; const matchingInstance=loaded.find(item => typeof item?.id === "string" && item.id === targetInstance) || loaded.find(item => typeof item?.id === "string" && item.id === targetModel); if (targetInstance && matchingInstance?.config?.context_length) { console.log(matchingInstance.config.context_length); process.exit(0); } if (key === targetModel) { if (matchingInstance?.config?.context_length) { console.log(matchingInstance.config.context_length); process.exit(0); } const fallback=Number(model?.max_context_length); if (Number.isFinite(fallback) && fallback > 0) { console.log(fallback); process.exit(0); } } } process.exit(1);' "$model" "$instance_id"
+}
+
+resolve_lmstudio_instance_id() {
+  local model="$1"
+
+  curl_json GET "${LMSTUDIO_BASE_URL%/}/api/v1/models" \
+    | json_node 'const fs=require("fs"); const target=process.argv[1] || ""; const raw=fs.readFileSync(0,"utf8"); const payload=raw ? JSON.parse(raw) : {}; for (const model of payload.models || []) { const loaded=Array.isArray(model?.loaded_instances) ? model.loaded_instances : []; for (const item of loaded) { if (typeof item?.id === "string" && item.id === target) { console.log(item.id); process.exit(0); } } if (typeof model?.key === "string" && model.key === target) { const first=loaded.find(item => typeof item?.id === "string"); console.log(first?.id || model.key); process.exit(0); } } process.exit(1);' "$model"
 }
 
 derive_max_output_tokens_for_context() {
@@ -93,7 +153,6 @@ derive_max_output_tokens_for_context() {
     max_output_cap=2048
   fi
 
-  # Keep local inference responsive while leaving enough headroom for context.
   if (( max_output_tokens < 512 )); then
     max_output_tokens=512
   fi
@@ -110,15 +169,10 @@ derive_max_output_tokens_for_context() {
   printf '%s' "$max_output_tokens"
 }
 
-set_ollama_context_env() {
-  local model="$1"
-  local context_length
+apply_context_limits() {
+  local context_length="$1"
   local context_cap
   local max_output_tokens
-
-  if ! context_length="$(get_ollama_model_context_length "$model")"; then
-    return 0
-  fi
 
   context_cap="${CLAUDE_DEV_CONTEXT_WINDOW_CAP:-32768}"
   if [[ "$context_cap" =~ ^[0-9]+$ ]] && (( context_cap > 0 )) && (( context_length > context_cap )); then
@@ -129,11 +183,143 @@ set_ollama_context_env() {
   set_env_if_needed CLAUDE_CODE_AUTO_COMPACT_WINDOW "$context_length" 0
   set_env_if_needed CLAUDE_CODE_MAX_OUTPUT_TOKENS "$max_output_tokens" 0
 
-  # Very small contexts can trigger immediate auto-compact loops; keep manual
-  # /compact available instead.
   if (( context_length <= 15000 )); then
     set_env_if_needed DISABLE_AUTO_COMPACT "${CLAUDE_DEV_DISABLE_AUTO_COMPACT_FOR_SMALL_CONTEXT:-1}" 0
   fi
+}
+
+set_ollama_context_env() {
+  local model="$1"
+  local context_length
+
+  if ! context_length="$(get_ollama_model_context_length "$model")"; then
+    return 0
+  fi
+
+  apply_context_limits "$context_length"
+}
+
+set_lmstudio_context_env() {
+  local model="$1"
+  local instance_id="${2:-}"
+  local context_length
+
+  if ! context_length="$(get_lmstudio_model_context_length "$model" "$instance_id")"; then
+    return 0
+  fi
+
+  apply_context_limits "$context_length"
+}
+
+set_common_local_mode_env() {
+  set_env_if_needed CLAUDE_CODE_LOCAL_MODEL_MODE "${CLAUDE_CODE_LOCAL_MODEL_MODE:-1}" 0
+  set_env_if_needed CLAUDE_CODE_MAX_TURNS "${CLAUDE_DEV_MAX_TURNS:-8}" 0
+  set_env_if_needed CLAUDE_CODE_EFFORT_LEVEL "${CLAUDE_DEV_EFFORT_LEVEL:-low}" 0
+  set_env_if_needed CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC "${CLAUDE_DEV_DISABLE_NONESSENTIAL_TRAFFIC:-1}" 0
+  set_env_if_needed CLAUDE_CODE_DISABLE_THINKING "${CLAUDE_DEV_DISABLE_THINKING:-1}" 0
+  set_env_if_needed DISABLE_INTERLEAVED_THINKING "${CLAUDE_DEV_DISABLE_INTERLEAVED_THINKING:-1}" 0
+
+  unset CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX CLAUDE_CODE_USE_FOUNDRY
+  unset USE_STAGING_OAUTH USE_LOCAL_OAUTH
+  unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR
+  unset ANTHROPIC_BEDROCK_BASE_URL ANTHROPIC_VERTEX_BASE_URL ANTHROPIC_FOUNDRY_BASE_URL
+  unset ANTHROPIC_FOUNDRY_RESOURCE ANTHROPIC_VERTEX_PROJECT_ID
+}
+
+set_ollama_model_env() {
+  local model="$1"
+  local force="${2:-0}"
+  local token="${CLAUDE_DEV_OLLAMA_API_KEY:-${OLLAMA_API_KEY:-ollama}}"
+
+  ACTIVE_PROVIDER="ollama"
+  ACTIVE_MODEL="$model"
+  ACTIVE_INSTANCE_ID="$model"
+  LOCAL_PROVIDER_AUTH_TOKEN="$token"
+
+  set_env_if_needed CLAUDE_CODE_LOCAL_MODEL_PROVIDER "ollama" "$force"
+  set_env_if_needed CLAUDE_DEV_LOCAL_PROVIDER "ollama" "$force"
+  set_env_if_needed ANTHROPIC_BASE_URL "$OLLAMA_BASE_URL" "$force"
+  set_env_if_needed ANTHROPIC_API_KEY "$token" "$force"
+  set_env_if_needed ANTHROPIC_AUTH_TOKEN "$token" "$force"
+  set_env_if_needed ANTHROPIC_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_SMALL_FAST_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_DEFAULT_SONNET_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_DEFAULT_HAIKU_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_DEFAULT_OPUS_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_CUSTOM_MODEL_OPTION "$model" "$force"
+  set_env_if_needed ANTHROPIC_CUSTOM_MODEL_OPTION_NAME "$model" "$force"
+  set_env_if_needed ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION "Local Ollama model" "$force"
+}
+
+set_lmstudio_model_env() {
+  local model="$1"
+  local force="${2:-0}"
+  local token="${CLAUDE_DEV_LMSTUDIO_API_KEY:-${LMSTUDIO_API_KEY:-lmstudio}}"
+
+  ACTIVE_PROVIDER="lmstudio"
+  ACTIVE_MODEL="$model"
+  ACTIVE_INSTANCE_ID="${ACTIVE_INSTANCE_ID:-$model}"
+  LOCAL_PROVIDER_AUTH_TOKEN="$token"
+
+  set_env_if_needed CLAUDE_CODE_LOCAL_MODEL_PROVIDER "lmstudio" "$force"
+  set_env_if_needed CLAUDE_DEV_LOCAL_PROVIDER "lmstudio" "$force"
+  set_env_if_needed ANTHROPIC_BASE_URL "$LMSTUDIO_BASE_URL" "$force"
+  set_env_if_needed ANTHROPIC_API_KEY "$token" "$force"
+  set_env_if_needed ANTHROPIC_AUTH_TOKEN "$token" "$force"
+  set_env_if_needed ANTHROPIC_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_SMALL_FAST_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_DEFAULT_SONNET_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_DEFAULT_HAIKU_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_DEFAULT_OPUS_MODEL "$model" "$force"
+  set_env_if_needed ANTHROPIC_CUSTOM_MODEL_OPTION "$model" "$force"
+  set_env_if_needed ANTHROPIC_CUSTOM_MODEL_OPTION_NAME "$model" "$force"
+  set_env_if_needed ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION "Local LM Studio model" "$force"
+}
+
+prompt_for_selection() {
+  local title="$1"
+  local default_index="${2:-0}"
+  shift 2
+  local -a options=("$@")
+  local selected="$default_index"
+  local key
+  local idx
+
+  if [[ "${#options[@]}" -eq 0 ]]; then
+    return 1
+  fi
+
+  tput civis >/dev/stderr 2>/dev/null || true
+  while true; do
+    printf '\033[2J\033[H' >&2
+    printf '%s\n\n' "$title" >&2
+    for idx in "${!options[@]}"; do
+      if [[ "$idx" -eq "$selected" ]]; then
+        printf '  \033[1;7m> %s\033[0m\n' "${options[$idx]}" >&2
+      else
+        printf '    %s\n' "${options[$idx]}" >&2
+      fi
+    done
+
+    IFS= read -rsn1 key || true
+    if [[ "$key" == $'\x1b' ]]; then
+      IFS= read -rsn2 key || true
+      case "$key" in
+        '[A')
+          selected=$(( (selected - 1 + ${#options[@]}) % ${#options[@]} ))
+          ;;
+        '[B')
+          selected=$(( (selected + 1) % ${#options[@]} ))
+          ;;
+      esac
+    elif [[ -z "$key" || "$key" == $'\n' || "$key" == $'\r' ]]; then
+      break
+    fi
+  done
+
+  printf '\033[2J\033[H' >&2
+  tput cnorm >/dev/stderr 2>/dev/null || true
+  printf '%s' "$selected"
 }
 
 should_use_model_picker() {
@@ -152,144 +338,142 @@ should_use_model_picker() {
   return 0
 }
 
-resolve_bun_runner() {
-  if command -v bun >/dev/null 2>&1; then
-    printf 'bun'
+choose_provider() {
+  local preferred="$1"
+  local picker_enabled="$2"
+  local -a providers=()
+  local -a labels=()
+  local default_index=0
+  local selected_index=0
+
+  if [[ "${#OLLAMA_MODELS[@]}" -gt 0 ]]; then
+    providers+=("ollama")
+    labels+=("Ollama (${#OLLAMA_MODELS[@]} local model(s))")
+  fi
+  if [[ "${#LMSTUDIO_MODELS[@]}" -gt 0 ]]; then
+    providers+=("lmstudio")
+    labels+=("LM Studio (${#LMSTUDIO_MODELS[@]} local model(s))")
+  fi
+
+  if [[ "${#providers[@]}" -eq 0 ]]; then
+    printf 'No local model provider is available. Start Ollama or LM Studio and try again.\n' >&2
+    exit 1
+  fi
+
+  if [[ "${#providers[@]}" -eq 1 ]]; then
+    printf '%s' "${providers[0]}"
     return 0
   fi
 
-  if command -v npx >/dev/null 2>&1; then
-    printf '%s' "$(command -v npx)"
-    return 0
-  fi
-
-  # Some constrained shells have a stripped PATH that omits Homebrew bins.
-  for npx_path in /opt/homebrew/bin/npx /usr/local/bin/npx; do
-    if [[ -x "$npx_path" ]]; then
-      printf '%s' "$npx_path"
-      return 0
-    fi
-  done
-
-  if command -v npm >/dev/null 2>&1; then
-    npm_bin="$(npm bin -g 2>/dev/null || true)"
-    if [[ -n "$npm_bin" && -x "$npm_bin/npx" ]]; then
-      printf '%s' "$npm_bin/npx"
-      return 0
-    fi
-  fi
-
-  if [[ -x /opt/homebrew/bin/npm ]]; then
-    npm_bin="$(/opt/homebrew/bin/npm bin -g 2>/dev/null || true)"
-    if [[ -n "$npm_bin" && -x "$npm_bin/npx" ]]; then
-      printf '%s' "$npm_bin/npx"
-      return 0
-    fi
-  fi
-
-  if [[ -x /usr/local/bin/npm ]]; then
-    npm_bin="$(/usr/local/bin/npm bin -g 2>/dev/null || true)"
-    if [[ -n "$npm_bin" && -x "$npm_bin/npx" ]]; then
-      printf '%s' "$npm_bin/npx"
-      return 0
-    fi
-  fi
-
-  if [[ -x /opt/homebrew/bin/node ]]; then
-    node_bin="$(/opt/homebrew/bin/node -p 'process.execPath' 2>/dev/null || true)"
-    if [[ -n "$node_bin" ]]; then
-      guess_npx="${node_bin%/node}/npx"
-      if [[ -x "$guess_npx" ]]; then
-        printf '%s' "$guess_npx"
-        return 0
+  if [[ -n "$preferred" ]]; then
+    for selected_index in "${!providers[@]}"; do
+      if [[ "${providers[$selected_index]}" == "$preferred" ]]; then
+        default_index="$selected_index"
+        break
       fi
-    fi
+    done
   fi
 
-  if [[ -x /usr/local/bin/node ]]; then
-    node_bin="$(/usr/local/bin/node -p 'process.execPath' 2>/dev/null || true)"
-    if [[ -n "$node_bin" ]]; then
-      guess_npx="${node_bin%/node}/npx"
-      if [[ -x "$guess_npx" ]]; then
-        printf '%s' "$guess_npx"
-        return 0
-      fi
-    fi
-  fi
-
-  if [[ -x /opt/homebrew/bin/npx ]]; then
-    printf '%s' '/opt/homebrew/bin/npx'
+  if [[ "$picker_enabled" == "1" ]]; then
+    selected_index="$(prompt_for_selection 'Select a local runtime for tiny-crab (arrow keys + Enter):' "$default_index" "${labels[@]}")"
+    printf '%s' "${providers[$selected_index]}"
     return 0
   fi
 
-  if [[ -x /usr/local/bin/npx ]]; then
-    printf '%s' '/usr/local/bin/npx'
-    return 0
-  fi
-
-  return 1
+  printf '%s' "${providers[$default_index]}"
 }
 
-prompt_for_model() {
+pick_ollama_model() {
   local default_model="$1"
-  local -a models=()
-  local line
+  local picker_enabled="$2"
   local idx
-  local selected=0
-  local key
+  local default_index=0
 
-  while IFS= read -r line; do
-    if [[ -n "$line" ]]; then
-      models+=("$line")
-    fi
-  done < <(get_ollama_models)
-
-  if [[ "${#models[@]}" -eq 0 ]]; then
+  if [[ "${#OLLAMA_MODELS[@]}" -eq 0 ]]; then
     printf 'No Ollama models found. Install one first with `ollama pull <model>`.\n' >&2
     exit 1
   fi
 
-  for idx in "${!models[@]}"; do
-    if [[ "${models[$idx]}" == "$default_model" ]]; then
-      selected="$idx"
-      break
-    fi
-  done
-
-  tput civis >/dev/stderr 2>/dev/null || true
-  while true; do
-    printf '\033[2J\033[H' >&2
-    printf 'Select an Ollama model for tiny-crab (arrow keys + Enter):\n\n' >&2
-    for idx in "${!models[@]}"; do
-      if [[ "$idx" -eq "$selected" ]]; then
-        printf '  \033[1;7m> %s\033[0m\n' "${models[$idx]}" >&2
-      else
-        printf '    %s\n' "${models[$idx]}" >&2
+  if [[ -n "$default_model" ]]; then
+    for idx in "${!OLLAMA_MODELS[@]}"; do
+      if [[ "${OLLAMA_MODELS[$idx]}" == "$default_model" ]]; then
+        default_index="$idx"
+        break
       fi
     done
+  fi
 
-    IFS= read -rsn1 key || true
-    if [[ "$key" == $'\x1b' ]]; then
-      IFS= read -rsn2 key || true
-      case "$key" in
-        '[A')
-          selected=$(( (selected - 1 + ${#models[@]}) % ${#models[@]} ))
-          ;;
-        '[B')
-          selected=$(( (selected + 1) % ${#models[@]} ))
-          ;;
-      esac
-    elif [[ -z "$key" || "$key" == $'\n' || "$key" == $'\r' ]]; then
-      break
+  if [[ "$picker_enabled" == "1" ]]; then
+    idx="$(prompt_for_selection 'Select an Ollama model for tiny-crab (arrow keys + Enter):' "$default_index" "${OLLAMA_MODELS[@]}")"
+    printf '%s' "${OLLAMA_MODELS[$idx]}"
+    return 0
+  fi
+
+  if [[ -n "$default_model" ]]; then
+    printf '%s' "$default_model"
+  else
+    printf '%s' "${OLLAMA_MODELS[$default_index]}"
+  fi
+}
+
+pick_lmstudio_model() {
+  local default_model="$1"
+  local picker_enabled="$2"
+  local -a labels=()
+  local idx
+  local default_index=0
+  local selected_index=0
+
+  if [[ "${#LMSTUDIO_MODELS[@]}" -eq 0 ]]; then
+    printf 'No LM Studio models were found. Download or index at least one local model first.\n' >&2
+    exit 1
+  fi
+
+  for idx in "${!LMSTUDIO_MODELS[@]}"; do
+    IFS=$'\t' read -r key display max_ctx loaded_id <<<"${LMSTUDIO_MODELS[$idx]}"
+    labels+=("$display [$key]")
+    if [[ -n "$default_model" && "$key" == "$default_model" ]]; then
+      default_index="$idx"
     fi
   done
 
-  printf '\033[2J\033[H' >&2
-  tput cnorm >/dev/stderr 2>/dev/null || true
-  printf '%s' "${models[$selected]}"
+  if [[ "$picker_enabled" == "1" ]]; then
+    selected_index="$(prompt_for_selection 'Select an LM Studio model for tiny-crab (arrow keys + Enter):' "$default_index" "${labels[@]}")"
+    IFS=$'\t' read -r key _display _max_ctx _loaded_id <<<"${LMSTUDIO_MODELS[$selected_index]}"
+    printf '%s' "$key"
+    return 0
+  fi
+
+  if [[ -n "$default_model" ]]; then
+    printf '%s' "$default_model"
+  else
+    IFS=$'\t' read -r key _display _max_ctx _loaded_id <<<"${LMSTUDIO_MODELS[$default_index]}"
+    printf '%s' "$key"
+  fi
 }
 
-warmup_model_with_progress() {
+find_lmstudio_loaded_instance() {
+  local model="$1"
+  local row
+  local key
+  local display
+  local max_ctx
+  local loaded_id
+
+  for row in "${LMSTUDIO_MODELS[@]}"; do
+    IFS=$'\t' read -r key display max_ctx loaded_id <<<"$row"
+    if [[ "$key" == "$model" ]]; then
+      if [[ -n "$loaded_id" ]]; then
+        printf '%s' "$loaded_id"
+      fi
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+warmup_ollama_model_with_progress() {
   local model="$1"
   local timeout_sec="${CLAUDE_DEV_MODEL_LOAD_TIMEOUT_SEC:-180}"
   local generate_url="${OLLAMA_BASE_URL%/}/api/generate"
@@ -299,8 +483,8 @@ warmup_model_with_progress() {
   local pid
 
   payload=$(printf '{"model":"%s","prompt":"ping","stream":false,"keep_alive":"15m","options":{"num_predict":1}}' "$model")
-  tmp_out="$(mktemp "${TMPDIR:-/tmp}/tiny-crab-warmup-out.XXXXXX")"
-  tmp_err="$(mktemp "${TMPDIR:-/tmp}/tiny-crab-warmup-err.XXXXXX")"
+  tmp_out="$(mktemp "${TMPDIR:-/tmp}/tiny-crab-ollama-warmup-out.XXXXXX")"
+  tmp_err="$(mktemp "${TMPDIR:-/tmp}/tiny-crab-ollama-warmup-err.XXXXXX")"
 
   if command -v curl >/dev/null 2>&1; then
     curl -sS --max-time "$timeout_sec" \
@@ -308,23 +492,72 @@ warmup_model_with_progress() {
       -X POST "$generate_url" \
       -d "$payload" >"$tmp_out" 2>"$tmp_err" &
   else
-    ollama run "$model" "ping" >"$tmp_out" 2>"$tmp_err" &
+    ollama run "$model" 'ping' >"$tmp_out" 2>"$tmp_err" &
   fi
   pid=$!
 
-  printf "Loading '%s' into memory " "$model"
+  printf "Loading '%s' into memory " "$model" >&2
   while kill -0 "$pid" 2>/dev/null; do
-    printf '#'
+    printf '#' >&2
     sleep 0.1
   done
 
   if wait "$pid"; then
-    printf ' done\n'
+    printf ' done\n' >&2
   else
-    printf ' failed\n'
+    printf ' failed\n' >&2
     if [[ -s "$tmp_err" ]]; then
       printf 'Model warmup warning: %s\n' "$(head -n 1 "$tmp_err")" >&2
     fi
+  fi
+
+  rm -f "$tmp_out" "$tmp_err"
+}
+
+load_lmstudio_model_with_progress() {
+  local model="$1"
+  local requested_context="${2:-}"
+  local timeout_sec="${CLAUDE_DEV_MODEL_LOAD_TIMEOUT_SEC:-180}"
+  local payload
+  local tmp_out
+  local tmp_err
+  local pid
+  local instance_id
+
+  if instance_id="$(find_lmstudio_loaded_instance "$model")" && [[ -n "$instance_id" ]]; then
+    ACTIVE_INSTANCE_ID="$instance_id"
+    return 0
+  fi
+
+  if [[ -n "$requested_context" ]]; then
+    payload=$(printf '{"model":"%s","context_length":%s,"echo_load_config":true}' "$model" "$requested_context")
+  else
+    payload=$(printf '{"model":"%s","echo_load_config":true}' "$model")
+  fi
+
+  tmp_out="$(mktemp "${TMPDIR:-/tmp}/tiny-crab-lmstudio-load-out.XXXXXX")"
+  tmp_err="$(mktemp "${TMPDIR:-/tmp}/tiny-crab-lmstudio-load-err.XXXXXX")"
+
+  curl_json POST "${LMSTUDIO_BASE_URL%/}/api/v1/models/load" "$payload" >"$tmp_out" 2>"$tmp_err" &
+  pid=$!
+
+  printf "Loading '%s' into memory " "$model" >&2
+  while kill -0 "$pid" 2>/dev/null; do
+    printf '#' >&2
+    sleep 0.1
+  done
+
+  if wait "$pid"; then
+    printf ' done\n' >&2
+    instance_id="$(json_node 'const fs=require("fs"); const raw=fs.readFileSync(0,"utf8"); const payload=raw ? JSON.parse(raw) : {}; if (typeof payload?.instance_id === "string" && payload.instance_id) console.log(payload.instance_id);' <"$tmp_out")"
+    ACTIVE_INSTANCE_ID="${instance_id:-$model}"
+  else
+    printf ' failed\n' >&2
+    if [[ -s "$tmp_err" ]]; then
+      printf 'LM Studio load failed: %s\n' "$(head -n 1 "$tmp_err")" >&2
+    fi
+    rm -f "$tmp_out" "$tmp_err"
+    exit 1
   fi
 
   rm -f "$tmp_out" "$tmp_err"
@@ -357,8 +590,21 @@ unload_ollama_model_from_memory() {
   return 1
 }
 
+unload_lmstudio_model_from_memory() {
+  local instance_id="$1"
+
+  if [[ -z "$instance_id" ]]; then
+    return 1
+  fi
+
+  curl_json POST "${LMSTUDIO_BASE_URL%/}/api/v1/models/unload" \
+    "$(printf '{"instance_id":"%s"}' "$instance_id")" >/dev/null 2>&1
+}
+
 get_running_ollama_models() {
-  ollama ps 2>/dev/null | awk 'NR > 1 && NF > 0 { print $1 }'
+  if has_ollama; then
+    ollama ps 2>/dev/null | awk 'NR > 1 && NF > 0 { print $1 }'
+  fi
 }
 
 unload_models_on_exit() {
@@ -372,15 +618,26 @@ unload_models_on_exit() {
   if [[ "$enabled" != "1" ]]; then
     return 0
   fi
-  if ! has_ollama; then
-    return 0
-  fi
 
-  while IFS= read -r model; do
-    if [[ -n "$model" ]]; then
-      models+=("$model")
-    fi
-  done < <(get_running_ollama_models)
+  case "${ACTIVE_PROVIDER:-}" in
+    lmstudio)
+      unload_lmstudio_model_from_memory "${ACTIVE_INSTANCE_ID:-${ACTIVE_MODEL:-}}" || true
+      return 0
+      ;;
+    ollama)
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  if has_ollama; then
+    while IFS= read -r model; do
+      if [[ -n "$model" ]]; then
+        models+=("$model")
+      fi
+    done < <(get_running_ollama_models)
+  fi
 
   if [[ -n "${ACTIVE_MODEL:-}" ]]; then
     models+=("$ACTIVE_MODEL")
@@ -404,6 +661,35 @@ unload_models_on_exit() {
   done
 }
 
+resolve_bun_runner() {
+  if command -v bun >/dev/null 2>&1; then
+    printf 'bun'
+    return 0
+  fi
+
+  if command -v npx >/dev/null 2>&1; then
+    printf '%s' "$(command -v npx)"
+    return 0
+  fi
+
+  for npx_path in /opt/homebrew/bin/npx /usr/local/bin/npx; do
+    if [[ -x "$npx_path" ]]; then
+      printf '%s' "$npx_path"
+      return 0
+    fi
+  done
+
+  if command -v npm >/dev/null 2>&1; then
+    npm_bin="$(npm bin -g 2>/dev/null || true)"
+    if [[ -n "$npm_bin" && -x "$npm_bin/npx" ]]; then
+      printf '%s' "$npm_bin/npx"
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
 on_exit() {
   unload_models_on_exit
   cleanup_tui
@@ -412,54 +698,74 @@ on_exit() {
 trap on_exit EXIT
 
 OLLAMA_BASE_URL="$(normalize_url "${CLAUDE_DEV_OLLAMA_BASE_URL:-${OLLAMA_HOST:-127.0.0.1:11434}}")"
-DEFAULT_MODEL="${CLAUDE_DEV_DEFAULT_MODEL:-${CLAUDE_OLLAMA_MODEL:-${OLLAMA_MODEL:-llama3.1:8b}}}"
-ACTIVE_MODEL="$DEFAULT_MODEL"
+LMSTUDIO_BASE_URL="$(normalize_url "${CLAUDE_DEV_LMSTUDIO_BASE_URL:-${LMSTUDIO_BASE_URL:-127.0.0.1:1234}}")"
+PREFERRED_PROVIDER="${CLAUDE_CODE_LOCAL_MODEL_PROVIDER:-${CLAUDE_DEV_LOCAL_PROVIDER:-}}"
+DEFAULT_MODEL="${CLAUDE_DEV_DEFAULT_MODEL:-}"
+OLLAMA_DEFAULT_MODEL="${CLAUDE_DEV_OLLAMA_MODEL:-${CLAUDE_OLLAMA_MODEL:-${OLLAMA_MODEL:-${DEFAULT_MODEL:-llama3.1:8b}}}}"
+LMSTUDIO_DEFAULT_MODEL="${CLAUDE_DEV_LMSTUDIO_MODEL:-${LMSTUDIO_MODEL:-${DEFAULT_MODEL:-}}}"
+ACTIVE_PROVIDER=""
+ACTIVE_MODEL=""
+ACTIVE_INSTANCE_ID=""
+LOCAL_PROVIDER_AUTH_TOKEN=""
 
-# Mark this launcher as local-model-only mode for onboarding and setup flows.
-set_env_if_needed CLAUDE_CODE_LOCAL_MODEL_MODE "${CLAUDE_CODE_LOCAL_MODEL_MODE:-1}" 0
+set_common_local_mode_env
 
-# Guard local-model sessions against runaway tool loops on weaker models.
-# Users can override with CLAUDE_DEV_MAX_TURNS or CLAUDE_CODE_MAX_TURNS.
-set_env_if_needed CLAUDE_CODE_MAX_TURNS "${CLAUDE_DEV_MAX_TURNS:-8}" 0
+OLLAMA_MODELS=()
+while IFS= read -r line; do
+  if [[ -n "$line" ]]; then
+    OLLAMA_MODELS+=("$line")
+  fi
+done < <(get_ollama_models 2>/dev/null || true)
 
-# Local models are slower with high effort defaults; keep a responsive default.
-set_env_if_needed CLAUDE_CODE_EFFORT_LEVEL "${CLAUDE_DEV_EFFORT_LEVEL:-low}" 0
+LMSTUDIO_MODELS=()
+while IFS= read -r line; do
+  if [[ -n "$line" ]]; then
+    LMSTUDIO_MODELS+=("$line")
+  fi
+done < <(get_lmstudio_models 2>/dev/null || true)
 
-# Local Ollama mode should not call nonessential Anthropic endpoints.
-set_env_if_needed CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC "${CLAUDE_DEV_DISABLE_NONESSENTIAL_TRAFFIC:-1}" 0
-
-# Disable Claude thinking modes by default for local Ollama models.
-# Many local models (including Gemma) emit hidden thinking tokens without
-# assistant text, which makes turns appear to hang or return empty output.
-set_env_if_needed CLAUDE_CODE_DISABLE_THINKING "${CLAUDE_DEV_DISABLE_THINKING:-1}" 0
-set_env_if_needed DISABLE_INTERLEAVED_THINKING "${CLAUDE_DEV_DISABLE_INTERLEAVED_THINKING:-1}" 0
-
-# Hard-disable cloud/provider auth paths in local mode.
-unset CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX CLAUDE_CODE_USE_FOUNDRY
-unset USE_STAGING_OAUTH USE_LOCAL_OAUTH
-unset CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR
-
-# Force this launcher to use Ollama wiring.
-set_ollama_model_env "$DEFAULT_MODEL" 1
-ACTIVE_MODEL="$DEFAULT_MODEL"
-
+picker_enabled=0
 if should_use_model_picker "$@"; then
-  if ! has_ollama; then
-    printf 'Ollama is not installed or not on PATH. Install/start Ollama, then run tiny-crab again.\n' >&2
-    exit 1
-  fi
-  if ! ollama list >/dev/null 2>&1; then
-    printf 'Unable to query Ollama models. Start Ollama first (for example: `ollama serve`).\n' >&2
-    exit 1
-  fi
-
-  selected_model="$(prompt_for_model "$DEFAULT_MODEL")"
-  ACTIVE_MODEL="$selected_model"
-  set_ollama_model_env "$selected_model" 1
-  warmup_model_with_progress "$selected_model"
+  picker_enabled=1
 fi
 
-set_ollama_context_env "$ACTIVE_MODEL"
+selected_provider="$(choose_provider "$PREFERRED_PROVIDER" "$picker_enabled")"
+
+case "$selected_provider" in
+  ollama)
+    selected_model="$(pick_ollama_model "$OLLAMA_DEFAULT_MODEL" "$picker_enabled")"
+    set_ollama_model_env "$selected_model" 1
+    if [[ "$picker_enabled" == "1" ]]; then
+      warmup_ollama_model_with_progress "$selected_model"
+    fi
+    set_ollama_context_env "$selected_model"
+    ;;
+  lmstudio)
+    if [[ -z "$LMSTUDIO_DEFAULT_MODEL" && "${#LMSTUDIO_MODELS[@]}" -gt 0 ]]; then
+      IFS=$'\t' read -r LMSTUDIO_DEFAULT_MODEL _display _max_ctx _loaded_id <<<"${LMSTUDIO_MODELS[0]}"
+    fi
+    selected_model="$(pick_lmstudio_model "$LMSTUDIO_DEFAULT_MODEL" "$picker_enabled")"
+    set_lmstudio_model_env "$selected_model" 1
+
+    requested_context=""
+    if [[ -n "${CLAUDE_DEV_CONTEXT_WINDOW_CAP:-}" && "${CLAUDE_DEV_CONTEXT_WINDOW_CAP:-}" =~ ^[0-9]+$ ]]; then
+      requested_context="${CLAUDE_DEV_CONTEXT_WINDOW_CAP}"
+    fi
+
+    if [[ "$picker_enabled" == "1" || -z "${ACTIVE_INSTANCE_ID:-}" ]]; then
+      load_lmstudio_model_with_progress "$selected_model" "$requested_context"
+    else
+      if instance_id="$(find_lmstudio_loaded_instance "$selected_model")" && [[ -n "$instance_id" ]]; then
+        ACTIVE_INSTANCE_ID="$instance_id"
+      fi
+    fi
+    set_lmstudio_context_env "$selected_model" "${ACTIVE_INSTANCE_ID:-}"
+    ;;
+  *)
+    printf 'Unsupported local provider: %s\n' "$selected_provider" >&2
+    exit 1
+    ;;
+esac
 
 runner="$(resolve_bun_runner)" || {
   printf 'Tiny Crab requires Bun. Install Bun (https://bun.sh) or ensure `npx` is available.\n' >&2

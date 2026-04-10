@@ -33,7 +33,7 @@ import { updateLastInteractionTime, getLastInteractionTime, getOriginalCwd, getP
 import { asSessionId, asAgentId } from '../types/ids.js';
 import { logForDebugging } from '../utils/debug.js';
 import { QueryGuard } from '../utils/QueryGuard.js';
-import { isEnvTruthy } from '../utils/envUtils.js';
+import { isEnvTruthy, isLocalModelMode } from '../utils/envUtils.js';
 import { formatTokens, truncateToWidth } from '../utils/format.js';
 import { consumeEarlyInput } from '../utils/earlyInput.js';
 import { setMemberActive } from '../utils/swarm/teamHelpers.js';
@@ -753,19 +753,19 @@ export function REPL({
     mcpClients
   });
   useAutoModeUnavailableNotification();
-  usePluginInstallationStatus();
-  usePluginAutoupdateNotification();
   useSettingsErrors();
   useRateLimitWarningNotification(mainLoopModel);
   useFastModeNotification();
   useDeprecationWarningNotification(mainLoopModel);
   useNpmDeprecationNotification();
   useAntOrgWarningNotification();
+  useLspInitializationNotification();
+  useTeammateLifecycleNotification();
+  usePluginInstallationStatus();
+  usePluginAutoupdateNotification();
   useInstallMessages();
   useChromeExtensionNotification();
   useOfficialMarketplaceNotification();
-  useLspInitializationNotification();
-  useTeammateLifecycleNotification();
   const {
     recommendation: lspRecommendation,
     handleResponse: handleLspResponse
@@ -782,7 +782,7 @@ export function REPL({
 
   // Initialize plugin management
   useManagePlugins({
-    enabled: !isRemoteSession
+    enabled: !isRemoteSession && !isLocalModelMode()
   });
   const tasksV2 = useTasksV2WithCollapseEffect();
 
@@ -795,7 +795,7 @@ export function REPL({
   // This ensures that plugin installations from repository and user settings only
   // happen after explicit user consent to trust the current working directory.
   useEffect(() => {
-    if (isRemoteSession) return;
+    if (isRemoteSession || isLocalModelMode()) return;
     void performStartupChecks(setAppState);
   }, [setAppState, isRemoteSession]);
 
@@ -1146,7 +1146,7 @@ export function REPL({
   // session from mid-conversation context.
   const haikuTitleAttemptedRef = useRef((initialMessages?.length ?? 0) > 0);
   const agentTitle = mainThreadAgentDefinition?.agentType;
-  const terminalTitle = sessionTitle ?? agentTitle ?? haikuTitle ?? 'Claude Code';
+  const terminalTitle = sessionTitle ?? agentTitle ?? haikuTitle ?? (isLocalModelMode() ? 'Tiny Crab' : 'Claude Code');
   const isWaitingForApproval = toolUseConfirmQueue.length > 0 || promptQueue.length > 0 || pendingWorkerRequest || pendingSandboxRequest;
   // Local-jsx commands (like /plugin, /config) show user-facing dialogs that
   // wait for input. Require jsx != null — if the flag is stuck true but jsx

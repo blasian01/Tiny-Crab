@@ -101,7 +101,8 @@ export function useBackgroundTaskNavigation(options?: {
       if (
         currentCount === 0 &&
         prevCount > 0 &&
-        prev.selectedIPAgentIndex !== -1
+        (prev.selectedIPAgentIndex !== -1 ||
+          prev.viewSelectionMode === 'selecting-agent')
       ) {
         if (prev.viewSelectionMode === 'viewing-agent') {
           return {
@@ -249,4 +250,3 @@ export function useBackgroundTaskNavigation(options?: {
 
   return { handleKeyDown }
 }
-

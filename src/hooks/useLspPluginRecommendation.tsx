@@ -18,6 +18,7 @@ import { useNotifications } from '../context/notifications.js';
 import { useAppState } from '../state/AppState.js';
 import { saveGlobalConfig } from '../utils/config.js';
 import { logForDebugging } from '../utils/debug.js';
+import { isLocalModelMode } from '../utils/envUtils.js';
 import { logError } from '../utils/log.js';
 import { addToNeverSuggest, getMatchingLspPlugins, incrementIgnoredCount } from '../utils/plugins/lspRecommendation.js';
 import { cacheAndRegisterPlugin } from '../utils/plugins/pluginInstallationHelpers.js';
@@ -39,6 +40,12 @@ type UseLspPluginRecommendationResult = {
   handleResponse: (response: 'yes' | 'no' | 'never' | 'disable') => void;
 };
 export function useLspPluginRecommendation() {
+  if (isLocalModelMode()) {
+    return {
+      recommendation: null,
+      handleResponse: () => {},
+    };
+  }
   const $ = _c(12);
   const trackedFiles = useAppState(_temp);
   const {

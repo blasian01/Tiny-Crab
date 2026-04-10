@@ -12,6 +12,8 @@ import {
 import { getStoredChangelogFromMemory, parseChangelog } from './releaseNotes.js'
 import { gt } from './semver.js'
 import { loadMessageLogs } from './sessionStorage.js'
+import { isLocalModelMode } from './envUtils.js'
+import { getLocalModelProviderRuntimeLabel } from './localModelProvider.js'
 import { getInitialSettings } from './settings/settings.js'
 
 // Layout constants
@@ -96,9 +98,9 @@ export function calculateOptimalLeftWidth(
  */
 export function formatWelcomeMessage(username: string | null): string {
   if (!username || username.length > MAX_USERNAME_LENGTH) {
-    return 'Welcome back!'
+    return 'Welcome to Tiny Crab'
   }
-  return `Welcome back ${username}!`
+  return `Welcome back to Tiny Crab, ${username}!`
 }
 
 /**
@@ -253,9 +255,11 @@ export function getLogoDisplayData(): {
   const cwd = serverUrl
     ? `${displayPath} in ${serverUrl.replace(/^https?:\/\//, '')}`
     : displayPath
-  const billingType = isClaudeAISubscriber()
-    ? getSubscriptionName()
-    : 'API Usage Billing'
+  const billingType = isLocalModelMode()
+    ? getLocalModelProviderRuntimeLabel()
+    : isClaudeAISubscriber()
+      ? getSubscriptionName()
+      : 'API Usage Billing'
   const agentName = getInitialSettings().agent
 
   return {
@@ -348,4 +352,3 @@ export function getRecentReleaseNotesSync(maxItems: number): string[] {
   // Return raw notes without filtering or premature truncation
   return allNotes.slice(0, maxItems)
 }
-

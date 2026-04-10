@@ -488,6 +488,7 @@ function keycodeToName(keycode: number): string | undefined {
   switch (keycode) {
     case 9:
       return 'tab'
+    case 10:
     case 13:
       return 'return'
     case 27:
@@ -698,11 +699,9 @@ function parseKeypress(s: string = ''): ParsedKey {
     return createNavKey(s, 'mouse', false)
   }
 
-  if (s === '\r') {
+  if (s === '\r' || s === '\n' || s === '\r\n') {
     key.raw = undefined
     key.name = 'return'
-  } else if (s === '\n') {
-    key.name = 'enter'
   } else if (s === '\t') {
     key.name = 'tab'
   } else if (s === '\b' || s === '\x1b\b') {
@@ -799,4 +798,3 @@ function createNavKey(s: string, name: string, ctrl: boolean): ParsedKey {
     isPasted: false,
   }
 }
-

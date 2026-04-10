@@ -1,7 +1,7 @@
 {
   "name": "tiny-crab",
   "version": "0.1.0",
-  "description": "Tiny Crab: a local LLM coding CLI powered by Ollama.",
+  "description": "Tiny Crab: a local LLM coding CLI powered by Ollama or LM Studio.",
   "license": "UNLICENSED",
   "private": true,
   "type": "module",

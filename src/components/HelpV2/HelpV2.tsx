@@ -11,6 +11,7 @@ import { Pane } from '../design-system/Pane.js';
 import { Tab, Tabs } from '../design-system/Tabs.js';
 import { Commands } from './Commands.js';
 import { General } from './General.js';
+import { isLocalModelMode } from '../../utils/envUtils.js';
 type Props = {
   onClose: (result?: string, options?: {
     display?: CommandResultDisplay;
@@ -136,21 +137,17 @@ export function HelpV2(t0) {
     tabs = $[15];
   }
   const t5 = insideModal ? undefined : maxHeight;
+  const helpTitle = `Tiny Crab v${MACRO.VERSION}`;
   let t6;
-  if ($[31] !== tabs) {
-    t6 = <Tabs title={false ? "/help" : `Claude Code v${MACRO.VERSION}`} color="professionalBlue" defaultTab="general">{tabs}</Tabs>;
-    $[31] = tabs;
-    $[32] = t6;
+  if ($[31] !== helpTitle || $[32] !== tabs) {
+    t6 = <Tabs title={helpTitle} color="professionalBlue" defaultTab="general">{tabs}</Tabs>;
+    $[31] = helpTitle;
+    $[32] = tabs;
+    $[33] = t6;
   } else {
-    t6 = $[32];
+    t6 = $[33];
   }
-  let t7;
-  if ($[33] === Symbol.for("react.memo_cache_sentinel")) {
-    t7 = <Box marginTop={1}><Text>For more help:{" "}<Link url="https://code.claude.com/docs/en/overview" /></Text></Box>;
-    $[33] = t7;
-  } else {
-    t7 = $[33];
-  }
+  const t7 = isLocalModelMode() ? <Box marginTop={1}><Text>For more help: see the README in this Tiny Crab checkout.</Text></Box> : <Box marginTop={1}><Text>For more help:{" "}<Link url="https://code.claude.com/docs/en/overview" /></Text></Box>;
   let t8;
   if ($[34] !== dismissShortcut || $[35] !== exitState.keyName || $[36] !== exitState.pending) {
     t8 = <Box marginTop={1}><Text dimColor={true}>{exitState.pending ? <>Press {exitState.keyName} again to exit</> : <Text italic={true}>{dismissShortcut} to cancel</Text>}</Text></Box>;

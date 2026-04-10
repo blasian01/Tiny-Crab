@@ -1,6 +1,10 @@
 import { checkInstall } from 'src/utils/nativeInstaller/index.js';
+import { isLocalModelMode } from 'src/utils/envUtils.js';
 import { useStartupNotification } from './useStartupNotification.js';
 export function useInstallMessages() {
+  if (isLocalModelMode()) {
+    return;
+  }
   useStartupNotification(_temp2);
 }
 async function _temp2() {

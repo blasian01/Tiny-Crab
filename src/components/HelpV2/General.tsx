@@ -6,7 +6,7 @@ export function General() {
   const $ = _c(2);
   let t0;
   if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-    t0 = <Box><Text>Claude understands your codebase, makes edits with your permission, and executes commands — right from your terminal.</Text></Box>;
+    t0 = <Box><Text>Tiny Crab works against your local codebase, uses local tools with your permission, and talks only to your local LLM runtime.</Text></Box>;
     $[0] = t0;
   } else {
     t0 = $[0];

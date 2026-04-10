@@ -68,7 +68,7 @@ import {
   getSonnet1mExpTreatmentEnabled,
 } from '../../utils/context.js'
 import { resolveAppliedEffort } from '../../utils/effort.js'
-import { isEnvTruthy } from '../../utils/envUtils.js'
+import { isEnvTruthy, isLocalModelMode } from '../../utils/envUtils.js'
 import { errorMessage } from '../../utils/errors.js'
 import { computeFingerprintFromMessages } from '../../utils/fingerprint.js'
 import { captureAPIRequest, logError } from '../../utils/log.js'
@@ -1695,6 +1695,43 @@ async function* queryModel(
       : undefined
 
     lastRequestBetas = betasParams
+
+    // Local model mode: strip fields that Ollama/LM Studio don't support.
+    // The Anthropic-compatible /v1/messages endpoint in these runtimes
+    // hangs when tools, thinking, betas, or cache_control are sent.
+    if (isLocalModelMode()) {
+      // Convert messages without cache breakpoints or cache_control markers
+      const plainMessages = messagesForAPI.map((msg) => {
+        if (msg.type === 'user') {
+          return userMessageToMessageParam(msg, false, false)
+        }
+        return assistantMessageToMessageParam(msg, false, false)
+      })
+
+      // Flatten system prompt array to a plain string (Ollama handles both,
+      // but a string avoids any cache_control objects leaking through)
+      const plainSystem =
+        Array.isArray(system)
+          ? system
+              .map((block) =>
+                typeof block === 'string'
+                  ? block
+                  : 'text' in block
+                    ? block.text
+                    : '',
+              )
+              .filter(Boolean)
+              .join('\n\n')
+          : system
+
+      return {
+        model: normalizeModelStringForAPI(options.model),
+        messages: plainMessages,
+        ...(plainSystem ? { system: plainSystem } : {}),
+        max_tokens: maxOutputTokens,
+        ...(temperature !== undefined && { temperature }),
+      }
+    }
 
     return {
       model: normalizeModelStringForAPI(options.model),

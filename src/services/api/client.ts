@@ -16,6 +16,10 @@ import {
   getAPIProvider,
   isFirstPartyAnthropicBaseUrl,
 } from 'src/utils/model/providers.js'
+import {
+  getLocalModelProviderLabel,
+  isCloudBackedLocalModel,
+} from 'src/utils/localModelProvider.js'
 import { getProxyFetchOptions } from 'src/utils/proxy.js'
 import {
   getIsNonInteractiveSession,
@@ -87,7 +91,7 @@ function createStderrLogger(): ClientOptions['logger'] {
   }
 }
 
-function assertLocalModeApiConfiguration(): void {
+function assertLocalModeApiConfiguration(model: string | undefined): void {
   if (!isLocalModelMode()) {
     return
   }
@@ -98,13 +102,19 @@ function assertLocalModeApiConfiguration(): void {
     isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
   ) {
     throw new Error(
-      'Local mode only supports Ollama. Disable Bedrock/Vertex/Foundry provider flags.',
+      'Local mode only supports local providers. Disable Bedrock/Vertex/Foundry provider flags.',
     )
   }
 
   if (!isLoopbackHttpUrl(process.env.ANTHROPIC_BASE_URL)) {
     throw new Error(
-      'Local mode requires ANTHROPIC_BASE_URL to be a loopback Ollama endpoint (for example http://127.0.0.1:11434).',
+      `Local mode requires ANTHROPIC_BASE_URL to be a loopback ${getLocalModelProviderLabel()} endpoint.`,
+    )
+  }
+
+  if (isCloudBackedLocalModel(model ?? process.env.ANTHROPIC_MODEL)) {
+    throw new Error(
+      'Cloud-backed Ollama models are disabled in Tiny Crab local-only mode.',
     )
   }
 }
@@ -122,7 +132,7 @@ export async function getAnthropicClient({
   fetchOverride?: ClientOptions['fetch']
   source?: string
 }): Promise<Anthropic> {
-  assertLocalModeApiConfiguration()
+  assertLocalModeApiConfiguration(model)
 
   const containerId = process.env.CLAUDE_CODE_CONTAINER_ID
   const remoteSessionId = process.env.CLAUDE_CODE_REMOTE_SESSION_ID
@@ -154,11 +164,13 @@ export async function getAnthropicClient({
     defaultHeaders['x-anthropic-additional-protection'] = 'true'
   }
 
-  logForDebugging('[API:auth] OAuth token check starting')
-  await checkAndRefreshOAuthTokenIfNeeded()
-  logForDebugging('[API:auth] OAuth token check complete')
+  if (!isLocalModelMode()) {
+    logForDebugging('[API:auth] OAuth token check starting')
+    await checkAndRefreshOAuthTokenIfNeeded()
+    logForDebugging('[API:auth] OAuth token check complete')
+  }
 
-  if (!isClaudeAISubscriber()) {
+  if (!isClaudeAISubscriber() && !isLocalModelMode()) {
     await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
   }
 
@@ -325,10 +337,16 @@ export async function getAnthropicClient({
 
   // Determine authentication method based on available tokens
   const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
-    apiKey: isClaudeAISubscriber() ? null : apiKey || getAnthropicApiKey(),
-    authToken: isClaudeAISubscriber()
-      ? getClaudeAIOAuthTokens()?.accessToken
-      : undefined,
+    apiKey: isLocalModelMode()
+      ? apiKey || process.env.ANTHROPIC_API_KEY
+      : isClaudeAISubscriber()
+        ? null
+        : apiKey || getAnthropicApiKey(),
+    authToken: isLocalModelMode()
+      ? process.env.ANTHROPIC_AUTH_TOKEN
+      : isClaudeAISubscriber()
+        ? getClaudeAIOAuthTokens()?.accessToken
+        : undefined,
     // Set baseURL from OAuth config when using staging OAuth
     ...(process.env.USER_TYPE === 'ant' &&
     isEnvTruthy(process.env.USE_STAGING_OAUTH)

@@ -1,6 +1,6 @@
 import { COMMON_HELP_ARGS } from '../../constants/xml.js'
 import type { LocalCommandCall } from '../../types/command.js'
-import { unloadOllamaModelFromMemory } from '../../utils/ollamaLocal.js'
+import { unloadLocalModelFromMemory } from '../../utils/localModelProvider.js'
 
 export const call: LocalCommandCall = async (args, context) => {
   const trimmedArgs = args.trim()
@@ -21,7 +21,7 @@ export const call: LocalCommandCall = async (args, context) => {
     }
   }
 
-  const result = await unloadOllamaModelFromMemory(model)
+  const result = await unloadLocalModelFromMemory(model)
   if (!result.ok) {
     return {
       type: 'text',

@@ -3,13 +3,13 @@
 import { feature } from 'bun:bundle'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js'
 import { logForDebugging } from '../utils/debug.js'
-import { isEnvDefinedFalsy } from '../utils/envUtils.js'
+import { isEnvDefinedFalsy, isLocalModelMode } from '../utils/envUtils.js'
 import { getAPIProvider } from '../utils/model/providers.js'
 import { getWorkload } from '../utils/workloadContext.js'
 
-const DEFAULT_PREFIX = `You are Claude Code, Anthropic's official CLI for Claude.`
-const AGENT_SDK_CLAUDE_CODE_PRESET_PREFIX = `You are Claude Code, Anthropic's official CLI for Claude, running within the Claude Agent SDK.`
-const AGENT_SDK_PREFIX = `You are a Claude agent, built on Anthropic's Claude Agent SDK.`
+const DEFAULT_PREFIX = `You are Tiny Crab, Tao Creative Labs' local-first coding CLI.`
+const AGENT_SDK_CLAUDE_CODE_PRESET_PREFIX = `You are Tiny Crab, Tao Creative Labs' local-first coding CLI, running within the Tiny Crab agent runtime.`
+const AGENT_SDK_PREFIX = `You are a Tiny Crab coding agent.`
 
 const CLI_SYSPROMPT_PREFIX_VALUES = [
   DEFAULT_PREFIX,
@@ -71,6 +71,10 @@ function isAttributionHeaderEnabled(): boolean {
  * replacement avoids Content-Length changes and buffer reallocation.
  */
 export function getAttributionHeader(fingerprint: string): string {
+  if (isLocalModelMode()) {
+    return ''
+  }
+
   if (!isAttributionHeaderEnabled()) {
     return ''
   }
@@ -93,4 +97,3 @@ export function getAttributionHeader(fingerprint: string): string {
   logForDebugging(`attribution header ${header}`)
   return header
 }
-

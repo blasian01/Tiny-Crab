@@ -6,6 +6,7 @@ import { useExitOnCtrlCDWithKeybindings } from '../hooks/useExitOnCtrlCDWithKeyb
 import { Box, Newline, Text, useTheme } from '../ink.js';
 import { useKeybindings } from '../keybindings/useKeybinding.js';
 import { env } from '../utils/env.js';
+import { getLocalModelProviderLabel } from '../utils/localModelProvider.js';
 import type { ThemeSetting } from '../utils/theme.js';
 import { Select } from './CustomSelect/select.js';
 import { WelcomeV2 } from './LogoV2/WelcomeV2.js';
@@ -25,7 +26,8 @@ export function Onboarding({
 }: Props): React.ReactNode {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [theme, setTheme] = useTheme();
-  const activeModel = process.env.ANTHROPIC_MODEL || 'your selected Ollama model';
+  const providerLabel = getLocalModelProviderLabel();
+  const activeModel = process.env.ANTHROPIC_MODEL || 'your selected local model';
   useEffect(() => {
     logEvent('tengu_began_setup', {});
   }, []);
@@ -71,7 +73,7 @@ export function Onboarding({
           <OrderedList.Item>
             <Text>Only run tiny-crab in folders you trust</Text>
             <Text dimColor wrap="wrap">
-              Workspace content is sent to your local Ollama server
+              Workspace content is sent to your local {providerLabel} server
               <Newline />
               using model: {activeModel}
             </Text>
@@ -93,7 +95,7 @@ export function Onboarding({
     steps.push({
       id: 'terminal-setup',
       component: <Box flexDirection="column" gap={1} paddingLeft={1}>
-          <Text bold>Use Claude Code&apos;s terminal setup?</Text>
+          <Text bold>Use Tiny Crab&apos;s terminal setup?</Text>
           <Box flexDirection="column" width={70} gap={1}>
             <Text>
               For the optimal coding experience, enable the recommended settings

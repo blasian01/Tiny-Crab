@@ -362,6 +362,7 @@ async function getSkills(cwd: string): Promise<{
   builtinPluginSkills: Command[]
 }> {
   try {
+    const localModelMode = isLocalModelMode()
     const [skillDirCommands, pluginSkills] = await Promise.all([
       getSkillDirCommands(cwd).catch(err => {
         logError(toError(err))
@@ -370,16 +371,22 @@ async function getSkills(cwd: string): Promise<{
         )
         return []
       }),
-      getPluginSkills().catch(err => {
-        logError(toError(err))
-        logForDebugging('Plugin skills failed to load, continuing without them')
-        return []
-      }),
+      localModelMode
+        ? Promise.resolve([])
+        : getPluginSkills().catch(err => {
+            logError(toError(err))
+            logForDebugging(
+              'Plugin skills failed to load, continuing without them',
+            )
+            return []
+          }),
     ])
     // Bundled skills are registered synchronously at startup
     const bundledSkills = getBundledSkills()
     // Built-in plugin skills come from enabled built-in plugins
-    const builtinPluginSkills = getBuiltinPluginSkillCommands()
+    const builtinPluginSkills = localModelMode
+      ? []
+      : getBuiltinPluginSkillCommands()
     logForDebugging(
       `getSkills returning: ${skillDirCommands.length} skill dir commands, ${pluginSkills.length} plugin skills, ${bundledSkills.length} bundled skills, ${builtinPluginSkills.length} builtin plugin skills`,
     )
@@ -452,13 +459,14 @@ export function meetsAvailabilityRequirement(cmd: Command): boolean {
  * because loading is expensive (disk I/O, dynamic imports).
  */
 const loadAllCommands = memoize(async (cwd: string): Promise<Command[]> => {
+  const localModelMode = isLocalModelMode()
   const [
     { skillDirCommands, pluginSkills, bundledSkills, builtinPluginSkills },
     pluginCommands,
     workflowCommands,
   ] = await Promise.all([
     getSkills(cwd),
-    getPluginCommands(),
+    localModelMode ? Promise.resolve([]) : getPluginCommands(),
     getWorkflowCommands ? getWorkflowCommands(cwd) : Promise.resolve([]),
   ])
 
@@ -475,15 +483,25 @@ const loadAllCommands = memoize(async (cwd: string): Promise<Command[]> => {
 
 const LOCAL_MODE_BLOCKED_COMMAND_NAMES = new Set([
   'chrome',
+  'cost',
+  'doctor',
+  'extra-usage',
   'feedback',
   'install-github-app',
   'install-slack-app',
   'login',
   'logout',
   'mobile',
+  'passes',
+  'plugin',
+  'privacy-settings',
+  'rate-limit-options',
+  'reload-plugins',
   'release-notes',
   'setup-token',
+  'stats',
   'upgrade',
+  'usage',
   'x402',
 ])
 
